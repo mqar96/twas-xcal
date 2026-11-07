@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use twas-xcal, please cite it as below."
+title: "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies"
+authors:
+  - family-names: Rao
+    given-names: Muhammad Qudduse Ahmad
+version: 0.1.0
+date-released: 2026-11-06
+license: MIT
+repository-code: "https://github.com/mqar96/twas-xcal"
+keywords:
+  - TWAS
+  - polygenicity
+  - type I error
+  - ancestry
+  - linkage disequilibrium

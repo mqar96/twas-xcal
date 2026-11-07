@@ -3,7 +3,7 @@
 [![tests](https://github.com/mqar96/twas-xcal/actions/workflows/tests.yml/badge.svg)](https://github.com/mqar96/twas-xcal/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-<!-- DOI_BADGE -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24028643.svg)](https://doi.org/10.5281/zenodo.24028643)
 
 **Ancestry-aware null calibration for transcriptome-wide association studies (TWAS).**
 
@@ -123,7 +123,9 @@ tests/         unit tests
 ## Citation
 If you use `twas-xcal`, please cite the software (see [`CITATION.cff`](CITATION.cff); GitHub's "Cite this repository" button gives BibTeX and APA):
 
-> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.1.0). https://github.com/mqar96/twas-xcal
+> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.24028644
+
+All versions: concept DOI [10.5281/zenodo.24028643](https://doi.org/10.5281/zenodo.24028643).
 
 A manuscript describing the method is in preparation.
 

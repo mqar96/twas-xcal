@@ -5,9 +5,17 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24028643.svg)](https://doi.org/10.5281/zenodo.24028643)
 
+> **Status (7 Nov 2026): v0.1.0 is an early research release under revision.** An independent audit found issues that are now being fixed for v0.2.0:
+> - an undocumented floor in the quadratic estimator;
+> - two different jackknife implementations;
+> - a non-standard genomic-control comparator;
+> - error rates at α ≤ 1e-4 that are model-based predictions, not counted false positives.
+>
+> Until v0.2.0, treat the numbers below as preliminary. Do not use XCAL/XCAL-t for production analyses.
+
 **Ancestry-aware null calibration for transcriptome-wide association studies (TWAS).**
 
-`twas-xcal` implements **XCAL** and **XCAL-t**, gene-level TWAS statistics that stay calibrated under polygenic traits in *any* GWAS ancestry. It also ships a reproducible multi-ancestry TWAS null simulator. All results can be reproduced from public data (1000 Genomes phase 3, MESA DivPop expression models).
+`twas-xcal` implements **XCAL** and **XCAL-t**, gene-level TWAS statistics designed to stay calibrated under polygenic (infinitesimal) architectures when the GWAS ancestry differs from European. Sparse architectures, case-control traits, sample overlap and admixed GWAS are not yet validated. It also ships a reproducible multi-ancestry TWAS null simulator. All results can be reproduced from public data (1000 Genomes phase 3, MESA DivPop expression models).
 
 <p align="center">
   <img src="results/real/fig_real_phi_ratio.png" width="720" alt="Ancestry-specific TWAS inflation slope across 12,453 MESA models">
@@ -30,13 +38,13 @@
 ## Why this matters
 TWAS tests (PrediXcan, S-PrediXcan, FUSION) are inflated under the null when the trait is polygenic. A gene-specific *variance-control* correction was recently proposed (Liang, Nyasimi & Im, *AJHG* 2026). Its inflation slope Φ depends on the LD structure of the GWAS population, and it has been validated only in European samples.
 
-**`twas-xcal` shows that Φ is ancestry-specific.** It also provides a correction that transfers across ancestries:
+Preliminary results suggest that Φ is ancestry-specific. The table below shows **model-based predicted** type-I error ratios, not counted false positives:
 
 | Setting | European-Φ variance control | **XCAL-t** |
 |---|---|---|
 | East Asian GWAS (simulation, genome-wide α) | up to **54×** excess false positives | 0.83–0.94× nominal |
-| African GWAS (simulation) | over-corrected (0.40–0.54×) → lost power | calibrated, **~1.9× more power** |
-| Real genomes (12,453 MESA models × 1000G, N·h² = 250k) | 4.5× (SAS) – 402× (AMR) | 0.63–0.85× nominal |
+| African GWAS (simulation) | over-corrected (0.40–0.54×) → lost power | ~nominal; plain XCAL had ~1.9× the power of EUR-Φ VC in one setting |
+| Real 1000G genotypes × 12,453 MESA models (no real phenotypes), N·h² = 250k, α = 2.5e-6 | 4.5× (SAS) – 402× (AMR) | 0.68–0.85× nominal |
 
 ## Method
 ```
@@ -50,7 +58,7 @@ Z_XCAL = v'z / sqrt( v'R_t v + c · Q_t(v) ),     v = w ∘ s_t
 | `Q_t(v)` | finite-sample-unbiased estimate of `v'Σ²v`: `[‖Rv‖² − (p/n)·v'Rv] / (1 + 1/n)` |
 | `c = N·h²/M` | polygenic scale, estimated from the GWAS by LD-score regression |
 
-**XCAL-t** adds a delete-block jackknife (K = 20) of the null variance with a Satterthwaite *t* reference, so it stays calibrated with small LD panels (~500 individuals, the size of a 1000 Genomes super-population). The full derivation is in [`docs/METHODS.md`](docs/METHODS.md).
+**XCAL-t** adds a delete-block jackknife (K = 20) of the null variance with a Satterthwaite *t* reference, so it stays calibrated with small LD panels (~500 individuals, the size of a 1000 Genomes super-population). Theory is in [`docs/METHODS.md`](docs/METHODS.md). The XCAL-t derivation is being added in v0.2.0.
 
 ## Installation
 ```bash
@@ -76,7 +84,7 @@ c = estimate_c(gwas_z, ld_scores)["c"]
 res = run_xcal(weights_df, gwas_df, panel_G, panel_snps, panel_pos, c=c, window_bp=1_000_000)
 res.head()   # gene, z_standard, inflation_factor, z_xcal, p_xcal
 ```
-XCAL-t (jackknife + t reference) is in `xcal.calibration` (`jackknife_panels`, `LQ_from_panels`, `satterthwaite_df`, `type1_t`).
+v0.1.0 has no user-facing XCAL-t p-value function; `xcal.calibration` only contains benchmark helpers. A proper `xcal_t` inference function is coming in v0.2.0.
 
 ## Key results
 ### Simulation (phase 1)
@@ -88,7 +96,7 @@ XCAL-t (jackknife + t reference) is in `xcal.calibration` (`jackknife_panels`, `
 | East Asian | 118–2,348× | 3.7–8.6× | 0.89–0.90× |
 | African | 45–1,361× | 1.9–2.3× | 0.92–0.94× |
 
-These were validated against individual-level GWAS (N = 10,000 per ancestry, 80,000 tests per cell). The ratio of empirical to predicted variance is 0.994.
+These ratios are model-based predictions. An individual-level check (N = 10,000 per ancestry; 40,000 correlated gene–phenotype evaluations per cell) confirmed the predicted *variance* (empirical/predicted = 0.994). It only tested plain XCAL at α = 0.05, not the extreme tails and not XCAL-t.
 
 ### Real genomes (phase 2)
 12,453 MESA expression models × 2,490 1000 Genomes genomes. Median Φ relative to European LD (5–95%):
@@ -105,7 +113,7 @@ Tables and figures are in [`results/`](results) and [`results/real/`](results/re
 
 ## Reproducing the paper
 ```bash
-bash scripts/run_all.sh work          # all simulations (~1.5 h on 2 CPU cores)
+bash scripts/run_all.sh work          # v0.1.0: scripts 01–05 only (06 panel size and 07 power not included)
 python -m pytest tests                # unit tests
 ```
 Real-data steps (1000 Genomes download with MD5 checks, MESA model parsing, per-chromosome calibration) are documented in [`realdata/README.md`](realdata/README.md).

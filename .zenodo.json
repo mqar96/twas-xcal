@@ -1,0 +1,34 @@
+{
+  "title": "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies",
+  "upload_type": "software",
+  "description": "<p><b>twas-xcal</b> provides XCAL and XCAL-t, ancestry-aware null calibration for TWAS tests (PrediXcan, S-PrediXcan, FUSION-type statistics) under polygenic architectures. The polygenic inflation slope of TWAS statistics is ancestry-specific: European-derived variance-control corrections are miscalibrated when transferred to East Asian, African, South Asian or admixed American GWAS. XCAL uses an ancestry-matched LD panel and a finite-sample-unbiased quadratic estimator; XCAL-t adds a delete-block jackknife Satterthwaite t-reference that absorbs LD-panel noise. The release includes a reproducible multi-ancestry TWAS null simulator (msprime/stdpopsim), validation on 3,538 simulated gene models, and real-data validation on 12,453 MESA expression models across 2,490 1000 Genomes genomes from five ancestries.</p>",
+  "creators": [
+    {
+      "name": "Rao, Muhammad Qudduse Ahmad",
+      "affiliation": "Independent Researcher, Lahore, Pakistan",
+      "orcid": "0009-0001-8731-7080"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "keywords": [
+    "TWAS",
+    "transcriptome-wide association study",
+    "GWAS",
+    "statistical genetics",
+    "polygenicity",
+    "type I error calibration",
+    "multi-ancestry",
+    "linkage disequilibrium",
+    "PrediXcan",
+    "1000 Genomes",
+    "MESA"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/mqar96/twas-xcal",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

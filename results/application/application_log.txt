@@ -1,0 +1,42 @@
+matched SNPs: 1,206,609 of 1,836,406 panel SNPs (74s)
+LDSC free intercept: {"c": 0.06302834437770541, "c_raw": 0.06302834437770541, "intercept": 1.15653469533462, "n_snps": 1206510, "fixed_intercept": false, "se_c": 0.003432553951296165, "se_intercept": 0.030087146791329324, "cov_intercept_c": -4.313515048773153e-05, "n_blocks": 200} 
+LDSC fixed intercept: {"c": 0.0747934102344498, "c_raw": 0.0747934102344498, "intercept": 1.0, "n_snps": 1206510, "fixed_intercept": true, "se_c": 0.003329293793950058, "se_intercept": 0.0, "cov_intercept_c": 0.0, "n_blocks": 200}
+implied N*h2 = c*M = 76,044 (M = 1,206,510); h2_SNP ~ 0.478
+models with >=1 usable SNP: 12,201
+chr1: 1,286 models (339s)
+chr2: 2,065 models (505s)
+chr3: 2,787 models (652s)
+chr4: 3,222 models (739s)
+chr5: 3,784 models (850s)
+chr6: 4,528 models (1145s)
+chr7: 5,155 models (1262s)
+chr8: 5,588 models (1354s)
+chr9: 6,075 models (1458s)
+chr10: 6,582 models (1578s)
+chr11: 7,339 models (1743s)
+chr12: 7,980 models (1876s)
+chr13: 8,199 models (1928s)
+chr14: 8,630 models (2029s)
+chr15: 9,012 models (2106s)
+chr16: 9,589 models (2228s)
+chr17: 10,315 models (2373s)
+chr18: 10,526 models (2422s)
+chr19: 11,331 models (2603s)
+chr20: 11,688 models (2691s)
+chr21: 11,850 models (2739s)
+chr22: 12,195 models (2814s)
+                                     method  n_models  lambda_median  n_sig_bonferroni  n_sig_genomewide_2p5e6  n_distinct_genes_bonf
+0                     Standard TWAS, EAS LD     12195       2.749848               445                     413                    318
+1                     Standard TWAS, EUR LD     12195       2.649793               427                     399                    302
+2  Adapted variance control (EUR q), EUR LD     12195       1.053254                52                      46                     41
+3  Adapted variance control (EUR q), EAS LD     12195       1.100126                54                      48                     39
+4                   XCAL (normal reference)     12195       1.088678                47                      42                     35
+5            XCAL-t (GWAS SDs; recommended)     12195       1.085996                44                      40                     32
+count    12195.000
+mean         0.984
+std          0.430
+min          0.015
+5%           0.487
+50%          0.922
+95%          1.686
+max         14.275

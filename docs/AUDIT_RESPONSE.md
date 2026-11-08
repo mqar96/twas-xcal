@@ -24,6 +24,8 @@ The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are 
 - **Genomic control (exact counts)**: 1.1–6.1× at α = 10⁻⁴ and up to 26× at α = 2.5e-6.
 - **Sparse architectures**: XCAL-t 0.97–1.01× the exact-variance oracle at α = 10⁻⁴ (v0.2.1: 0.85–0.97×).
 - **Power**: XCAL-t loses at most 6.5% relative to the oracle (v0.2.1: up to 23%).
+- **Real genotypes** (model-based; noisy half-panel truth puts standard TWAS at 1.28–1.52× at α = 2.5e-6 without signal): XCAL-t 1.10–1.75× at α = 2.5e-6 in the homogeneous panels and up to 3.0× in the admixed American panel (v0.2.1: 0.71–1.02× and 1.46×). The v0.2.1 values benefited from the over-estimated jackknife variance.
+- **Pre-release verification found one more defect**: with GWAS-SD scaling, the real-genotype and Biobank Japan scripts kept weight SNPs that are monomorphic in the panel in the numerator. Fixed (as `xcal_gene` already did), unit-tested, and both analyses rerun. The simulations were unaffected.
 - **Biobank Japan height**: λ 2.75 (standard) → 1.09 (XCAL-t).
 
 ## Independent audit of v0.1.0 (7 November 2026)

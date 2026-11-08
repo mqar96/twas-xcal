@@ -7,106 +7,103 @@
 
 **Ancestry-aware null calibration for transcriptome-wide association studies (TWAS).**
 
-`twas-xcal` implements **XCAL-t**: a summary-statistic TWAS test whose null variance includes the polygenic background of the *GWAS* ancestry, with a reference distribution that accounts for LD-panel noise. It also ships a benchmark that **counts** false positives against an exactly known simulated null.
+`twas-xcal` implements **XCAL-t**: a summary-statistic TWAS test whose null variance includes the polygenic background of the *GWAS* ancestry, with a reference distribution that accounts for LD-panel noise and for uncertainty in the estimated polygenicity. It also ships a benchmark that **counts** false positives against an exactly known simulated null.
 
-> **v0.2.0 is a corrective release.** v0.1.0 had an undocumented estimator floor, two different jackknife implementations, a non-standard genomic-control comparator, and tail error rates that were predicted rather than counted. All of these are fixed and every result was regenerated. See [CHANGELOG](CHANGELOG.md).
+> **v0.3.0** responds to an external re-audit of v0.2.1. Weights are now scaled by GWAS allele-frequency SDs and the jackknife holds them fixed; the standard errors of the estimated intercept and slope are propagated; polygenicity is estimated leave-one-chromosome-out; genomic control is counted exactly; every step records provenance; and the method is applied to Biobank Japan height. All results were regenerated. See [CHANGELOG](CHANGELOG.md) and [docs/AUDIT_RESPONSE.md](docs/AUDIT_RESPONSE.md).
 
 ## What the evidence shows (and what it does not)
-Results below come from 3,540 trained gene models per ancestry, 500 simulated 1-Mb regions, and about 10⁸ counted null tests per setting. The simulated GWAS z-scores have an exactly known covariance built from 20,000-person LD, so no estimator is involved in the truth.
+Simulation results come from 3,540 trained gene models per ancestry, 500 simulated 1-Mb regions, and 1.06 × 10⁸ counted null tests per setting. The simulated z-scores have an exactly known covariance built from 20,000-person LD, so no estimator is involved in the truth.
 
-1. **The polygenic inflation slope Φ is ancestry-specific.** Relative to European LD, the median Φ ratio is 1.04 for East Asian LD (5–95%: 0.62–1.77) and 0.63 for African LD (0.37–1.08).
-2. **Under a highly polygenic (infinitesimal) background**, European-Φ variance control is miscalibrated outside Europeans. Genomic control fails everywhere.
+1. **The polygenic inflation slope is ancestry-specific.** The slope q of a gene is a weight-specific LD score of the GWAS population (the general slope Φ = q/M of Liang, Nyasimi & Im 2026, Eq. 3). Relative to European LD, its median ratio is 1.04 in East Asian LD (5–95%: 0.62–1.78) and 0.63 in African LD (0.37–1.09).
+2. **Under a polygenic (infinitesimal) background**, variance control with European q is miscalibrated outside Europeans and genomic control fails everywhere. Counted type-I error ÷ nominal, N·h² ≈ 6k–247k:
 
-   Counted type-I error ÷ nominal at α = 2.5 × 10⁻⁶ (N·h² ≈ 6k–247k):
+   | GWAS ancestry | α | Standard TWAS | Genomic control | Adapted VC (EUR q, EUR LD) | Adapted VC (EUR q, matched LD) | XCAL (normal ref.) | **XCAL-t** |
+   |---|---|---|---|---|---|---|---|
+   | European | 10⁻⁴ | 5.9–2,400 | 1.2–5.9 | 1.10–1.40 | 1.10–1.40 | 1.10–1.42 | **1.02–1.07** |
+   | European | 2.5 × 10⁻⁶ | 14–64,000 | 1.7–26 | 1.2–1.9 | 1.2–1.9 | 1.2–1.9 | **0.98–1.11** |
+   | East Asian | 10⁻⁴ | 6.4–2,500 | 1.3–6.1 | 1.75–9.0 | 1.32–7.1 | 1.10–1.37 | **1.02–1.03** |
+   | East Asian | 2.5 × 10⁻⁶ | 16–67,000 | 1.8–25 | 3.8–61 | 1.75–35 | 1.3–1.8 | **1.02–1.22** |
+   | African | 10⁻⁴ | 3.3–1,500 | 1.1–3.8 | 1.67–2.13 | 0.39–0.63 | 1.09–1.45 | **1.02–1.09** |
+   | African | 2.5 × 10⁻⁶ | 5.9–34,000 | 1.4–13 | 8.1–15.8 | 0.46–1.45 | 1.3–2.2 | **1.04–1.20** |
 
-   | GWAS ancestry | Standard TWAS | Genomic control | Variance control (EUR Φ, EUR LD) | Variance control (EUR Φ, matched LD) | XCAL (normal ref.) | **XCAL-t** |
-   |---|---|---|---|---|---|---|
-   | European | 14–63,600 | 1.6–26 | 1.2–1.8 | 1.2–1.8 | 1.2–1.8 | **0.71–0.90** |
-   | East Asian | 15–67,000 | 1.4–25 | 3.8–61 | 1.6–35 | 1.1–1.8 | **0.68–0.88** |
-   | African | 6–34,000 | 1.2–13 | 8–16 | 0.41–1.46 | 1.2–1.9 | **0.81–0.89** |
+   XCAL-t is close to nominal but **slightly liberal** in the extreme tail (up to about 1.2× at α = 2.5 × 10⁻⁶). With a 500-person panel, plain XCAL with a normal reference is not calibrated in the tail; use XCAL-t.
+3. **With a and c estimated** leave-one-chromosome-out (300 genomes per setting, including confounded GWAS with a = 1.1), XCAL-t with propagated standard errors has conditional type-I ratios of 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5 × 10⁻⁶.
+4. **Sparse architectures break every variance correction with a Gaussian reference**, including the oracle that knows the exact null variance. With π = 0.01 (about 4 causal SNPs per Mb) the oracle is 26–61× inflated at α = 10⁻⁴. XCAL-t stays at 0.97–1.01× the oracle at α = 10⁻⁴. When a trait has strong local signals, extreme-tail TWAS hits need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
 
-   With a 500-person LD panel, plain XCAL with a normal reference is **not** calibrated in the tail (up to 1.9×). Use XCAL-t.
-3. **Sparse architectures break every variance-based correction**, including the oracle that knows the true null variance. With π = 0.01 (about 4 causal SNPs per Mb), even the oracle is 26–60× inflated at α = 10⁻⁴. These false positives are genes near causal variants (the "null" of a TWAS is not "no nearby signal"). At α = 10⁻⁴, **XCAL-t stays at 0.85–0.97× the oracle** in every ancestry and architecture. European-Φ variance control ranges from 0.38× to 9.2× the oracle.
+**Real genotypes (1000 Genomes × MESA models; model-based predictions, no phenotypes).** 12,478 MESA models (P < 0.05) in five 1000 Genomes super-populations; the truth is an independent half-panel, whose own noise puts standard TWAS at 1.28–1.52× at α = 2.5 × 10⁻⁶ even without polygenic signal.
+- Median slope ratio vs European LD: African 0.61 (5–95%: 0.30–1.27), South Asian 0.90, East Asian 0.94, admixed American 1.22.
+- Predicted type-I ratios at α = 2.5 × 10⁻⁶, N·h² up to 250k: European-q variance control (EUR LD) up to 11.8× (African), 5.3× (South Asian), 19.6× (East Asian), 402× (admixed American) and 4.7× (European); XCAL up to 4.1–15.7×; **XCAL-t 1.10–1.75×** in the African, South Asian, East Asian and European panels and up to 3.0× in the admixed American panel (admixture LD). See [`realdata/README.md`](realdata/README.md).
 
-So in the three simulated ancestries, XCAL-t is calibrated under polygenic backgrounds and stays close to the exact-variance oracle under sparse ones. When the trait has strong local signals, extreme-tail TWAS hits still need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
-
-**Real genotypes (1000 Genomes × 12,478 MESA models; model-based predictions, no real phenotypes).**
-- Median Φ ratio relative to European LD:
-  - African 0.61 (5–95%: 0.30–1.27)
-  - South Asian 0.90
-  - East Asian 0.94
-  - Admixed American 1.22
-- At N·h² = 250k and α = 2.5 × 10⁻⁶, European-Φ variance control with EUR LD is predicted at:
-  - 11.8× (African), 5.3× (South Asian), 19.6× (East Asian) and 402× (admixed American);
-  - 4.7× in European data, the half-panel noise floor.
-- XCAL-t is predicted at 0.71–1.02× in the African, South Asian, East Asian and European panels.
-- In the admixed American panel XCAL-t reaches 1.46× at the highest polygenicity, consistent with admixture LD.
-
-See [`realdata/README.md`](realdata/README.md).
+**Biobank Japan height (N = 159,095; 12,195 MESA models).** Standard TWAS: λ = 2.75 and 445 Bonferroni-significant models. XCAL-t with leave-one-chromosome-out LDSC (â ≈ 1.16, ĉ ≈ 0.063) and propagated SEs: λ = 1.09 and 44 models (32 genes), including *UQCC* (*GDF5* region), *ZBTB38* and *GNA12*. No ground truth exists here; the comparison is descriptive.
 
 Not validated: case-control traits, eQTL/GWAS sample overlap, and admixed GWAS (local-ancestry LD is needed).
 
 ## Method in one line
 ```
-Z_XCAL = v'z / sqrt( a·v'R̂v + c·Q̂ ),   v = w ∘ ŝ   (panel of the GWAS ancestry)
-p = 2·P(t_ν > |Z_XCAL|),               ν = 2/τ̂²    (delete-group jackknife of the denominator)
+Z_XCAL = v'z / sqrt( a·v'R̂v + c·Q̂ ),   v = w ∘ s_GWAS,  s_GWAS = sqrt(2f(1−f))
+p = 2·P(t_ν > |Z_XCAL|),               ν = 2/τ̂²,  τ̂² = [Var_jk(D̂) + Q̂²se_c² + L̂²se_a²] / D̂²
 ```
-- Q̂ estimates v′Σ²v with a moment correction for panel size and a Cauchy–Schwarz positivity floor. Measured bias is within ±5% (Gaussian settings) and −0.2% to −0.7% (simulated genotype panels).
-- c = N·h²/M and the intercept a come from LD-score regression.
+- R̂ comes from an LD panel of the GWAS ancestry. Q̂ estimates v′Σ²v with a moment correction for panel size and a Cauchy–Schwarz positivity floor (measured bias −0.4% to −1.0% on 500-person genotype panels).
+- The delete-group jackknife holds v fixed and recomputes only the panel correlation.
+- a and c come from LD-score regression, ideally leaving out the tested chromosome.
+- If GWAS allele frequencies are missing, panel SDs are used and inference is conditional on them (the package warns).
 
 Derivation, estimator, jackknife and limits: [`docs/METHODS.md`](docs/METHODS.md).
 
 ## Installation
 ```bash
-pip install "twas-xcal @ git+https://github.com/mqar96/twas-xcal@v0.2.1"
+pip install "twas-xcal @ git+https://github.com/mqar96/twas-xcal@v0.3.0"
 # extras for the benchmarks:
-pip install "twas-xcal[sim,real] @ git+https://github.com/mqar96/twas-xcal@v0.2.1"
+pip install "twas-xcal[sim,real] @ git+https://github.com/mqar96/twas-xcal@v0.3.0"
 ```
-Requires Python ≥ 3.10.
+Requires Python ≥ 3.10. Tested on Linux and Windows, including minimum supported dependency versions.
 
 ## Quick start
 ```python
-import pandas as pd
 from xcal import harmonize, ld_scores, estimate_c, run_xcal
 
-# 1. align weights and GWAS z-scores to the panel's counted allele (a1); drops strand-ambiguous SNPs
-weights, rep_w = harmonize(weights_raw, panel_alleles)          # columns: gene, snp, effect_allele, other_allele, weight
-gwas, rep_g = harmonize(gwas_raw, panel_alleles, value_col="z")
+# 1. align weights and GWAS to the panel's counted allele (a1); strand-ambiguous SNPs are dropped
+weights, rep_w = harmonize(weights_raw, panel_alleles)                 # gene, snp, effect_allele, other_allele, weight
+gwas, rep_g = harmonize(gwas_raw, panel_alleles, value_col="z")       # snp, effect_allele, other_allele, z, eaf
 
-# 2. polygenic scale c (and intercept) by LD-score regression, with LD scores from a panel of the GWAS ancestry
-l = ld_scores(panel_G_ldsc, panel_pos_ldsc)                     # same SNP set as the regression
-fit = estimate_c(gwas_ldsc_z, l)                                # dict: c, se_c, intercept, se_intercept
+# 2. intercept a and slope c by LD-score regression on the OTHER chromosomes (LD scores from the GWAS ancestry)
+l = ld_scores(panel_G_ldsc, panel_pos_ldsc)
+fit = estimate_c(gwas_other_chrom_z, l)              # c, se_c, intercept, se_intercept, cov_intercept_c
 
-# 3. XCAL-t for every gene on a chromosome
+# 3. XCAL-t for every gene on the held-out chromosome
 res = run_xcal(weights, gwas, panel_G, panel_snps, panel_pos,
-               c=fit["c"], intercept=max(fit["intercept"], 1.0))
-res[["gene", "n_snps_used", "weight_coverage", "z_xcal", "df", "p_xcal_t", "status"]]
+               c=fit["c"], intercept=fit["intercept"], se_c=fit["se_c"], se_a=fit["se_intercept"])
+res[["gene", "n_snps_used", "weight_coverage", "sd_source", "z_xcal", "df", "p_xcal_t", "status"]]
 ```
-`p_xcal_t` is the recommended p-value. The output also reports coverage (share of squared weight retained), the number of SNPs dropped for being absent from the panel or the GWAS, and the estimator floor flag.
+`p_xcal_t` is the recommended p-value. `sd_source` is `gwas` when an `eaf` (or `sd`) column was supplied. The output also reports weight coverage, SNPs dropped as absent from the panel or the GWAS, and the estimator floor flag.
 
 ## Reproducing the results
 ```bash
-bash scripts/run_all.sh work 2        # every simulation table and figure in results/ (~3.5 h on 2 cores)
-python -m pytest tests                # unit tests (incl. the audit counterexample)
+bash scripts/run_all.sh work 2        # every simulation table and figure in results/ (~6 h on 2 cores)
+python -m pytest tests                # unit tests (incl. the audit counterexamples)
 ```
-`results/MANIFEST.json` lists SHA-256 hashes of all outputs and the package versions used. Real-genotype steps (inputs checksum-verified, model commit pinned) are in [`realdata/README.md`](realdata/README.md).
+Each step writes a provenance record (git revision, dirty flag, module path, source SHA-256, package versions) to `results/provenance/`. `results/MANIFEST.json` lists SHA-256 hashes of all outputs. Real-genotype and Biobank Japan steps are in [`realdata/README.md`](realdata/README.md).
 
 | Output | Script |
 |---|---|
-| Counted null calibration, sparse architectures, GC, Φ, estimator check | `03_null_benchmark.py` → `05_analyze_null.py` |
+| Counted null calibration, sparse architectures, exact GC, slope transfer, estimator check | `03_null_benchmark.py` (two passes) → `05_analyze_null.py` |
 | Gaussian estimator bias | `00_estimator_bias.py` |
 | Individual-level GWAS check | `04_individual_level_validation.py` |
-| Panel size, power, estimated c | `06`, `07`, `08` → `09_analyze_extra.py` |
+| Panel size, power, LOCO estimated a and c | `06`, `07`, `08` → `09_analyze_extra.py` |
+| Real genotypes, Biobank Japan | `realdata/real_calibration.py`, `realdata/gwas_application.py` |
+
+The per-gene raw counts of the main benchmark are in `results/raw/null_benchmark_per_gene.csv.gz`; `05_analyze_null.py --combined` rebuilds every table from it.
 
 ## Citation
-> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.2.1). Zenodo. https://doi.org/10.5281/zenodo.24047711
+> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.3.0). Zenodo. [V030_DOI]
 
 See [`CITATION.cff`](CITATION.cff). All versions: concept DOI [10.5281/zenodo.24028643](https://doi.org/10.5281/zenodo.24028643).
 
 **Upstream data and methods:**
 - 1000 Genomes Project Consortium (2015), *Nature* 526:68.
 - MESA DivPop models: Mogil et al. (2018), *PLoS Genet* 14:e1007586.
-- Variance control: Liang, Nyasimi & Im (2026), *AJHG* 113:276, [doi:10.1016/j.ajhg.2025.12.014](https://doi.org/10.1016/j.ajhg.2025.12.014).
+- Biobank Japan height: Akiyama et al. (2019), *Nat Commun* 10:4393 (NBDC hum0014.v15).
+- Variance control and the general slope: Liang, Nyasimi & Im (2026), *AJHG* 113:276, [doi:10.1016/j.ajhg.2025.12.014](https://doi.org/10.1016/j.ajhg.2025.12.014).
 - LD-score regression: Bulik-Sullivan et al. (2015), *Nat Genet* 47:291.
 - Simulation software: msprime (Baumdicker et al., 2022) and stdpopsim (Adrion et al., 2020).
 

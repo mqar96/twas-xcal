@@ -1,7 +1,7 @@
 {
   "title": "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies",
   "upload_type": "software",
-  "description": "<p><b>twas-xcal</b> provides XCAL-t, an ancestry-aware null calibration for summary-statistic TWAS tests (S-PrediXcan type) under polygenic backgrounds. The polygenic inflation slope of TWAS statistics is a weight-specific LD score of the GWAS population, so European-derived variance-control corrections are miscalibrated in other ancestries. XCAL-t uses an ancestry-matched LD panel, a moment-corrected estimator of the polygenic variance term with a Cauchy-Schwarz positivity floor, LD-score-regression estimates of the polygenic scale and intercept, and a delete-group jackknife Satterthwaite t reference for LD-panel noise.</p><p>The release includes a benchmark that counts false positives against an exactly known simulated null (3,540 gene models per ancestry, ~10^8 tests per setting, infinitesimal and sparse architectures), an individual-level GWAS check, an end-to-end benchmark with estimated polygenicity, and a real-genotype benchmark (1000 Genomes phase 3 x 12,453 MESA expression models; model-based). Version 0.2.0 corrects errors in v0.1.0 identified by an independent audit (see CHANGELOG).</p>",
+  "description": "<p><b>twas-xcal</b> provides XCAL-t, an ancestry-aware null calibration for summary-statistic TWAS tests (S-PrediXcan type) under polygenic backgrounds. The polygenic inflation slope of a TWAS statistic is a weight-specific LD score of the GWAS population (the general slope of Liang, Nyasimi &amp; Im 2026), so variance-control corrections computed in European LD are miscalibrated in other ancestries. XCAL-t scales weights by GWAS allele-frequency SDs, uses an ancestry-matched LD panel with a moment-corrected estimator of the polygenic variance term, LD-score-regression estimates of the intercept and slope (leave-one-chromosome-out), and a delete-group jackknife Satterthwaite t reference that also propagates the LDSC standard errors.</p><p>The release includes a benchmark that counts false positives against an exactly known simulated null (3,540 gene models per ancestry, 1.06e8 tests per setting, infinitesimal and sparse architectures, exact genomic-control counts), an individual-level GWAS check, a leave-one-chromosome-out benchmark with estimated intercept and slope (including confounded GWAS), a real-genotype benchmark (1000 Genomes phase 3 x 12,478 MESA expression models; model-based) and an application to Biobank Japan height (12,195 models), with per-step provenance records. Version 0.3.0 responds to a re-audit of v0.2.1; v0.2.x and v0.1.0 are superseded (see CHANGELOG and docs/AUDIT_RESPONSE.md).</p>",
   "creators": [
     {
       "name": "Rao, Muhammad Qudduse Ahmad",
@@ -22,7 +22,8 @@
     "linkage disequilibrium",
     "PrediXcan",
     "1000 Genomes",
-    "MESA"
+    "MESA",
+    "Biobank Japan"
   ],
   "related_identifiers": [
     {
@@ -31,5 +32,5 @@
       "scheme": "url"
     }
   ],
-  "version": "0.2.1"
+  "version": "0.3.0"
 }

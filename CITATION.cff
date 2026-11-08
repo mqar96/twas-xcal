@@ -5,29 +5,31 @@ title: "twas-xcal: ancestry-aware null calibration for transcriptome-wide associ
 abstract: >-
   XCAL-t is an ancestry-aware null calibration for summary-statistic TWAS tests
   under polygenic backgrounds: an ancestry-matched LD panel, a bias-corrected
-  estimator of the polygenic variance term, and a jackknife Satterthwaite t
-  reference for LD-panel noise. Includes a benchmark that counts false positives
+  estimator of the polygenic variance term, GWAS allele-frequency SD scaling,
+  and a jackknife Satterthwaite t reference for LD-panel noise and uncertainty
+  in the LD-score-regression intercept and slope. Includes a benchmark that counts false positives
   against an exactly known simulated null (infinitesimal and sparse architectures)
-  and a real-genotype benchmark (1000 Genomes x MESA).
+  a real-genotype benchmark (1000 Genomes x MESA) and a Biobank Japan height
+  application.
 authors:
   - family-names: Rao
     given-names: Muhammad Qudduse Ahmad
     affiliation: "Independent Researcher, Lahore, Pakistan"
     orcid: "https://orcid.org/0009-0001-8731-7080"
     email: qudduse1234@gmail.com
-version: 0.2.1
+version: 0.3.0
 date-released: 2026-11-08
-doi: 10.5281/zenodo.24047711
+doi: 10.5281/zenodo.24028643
 identifiers:
   - type: doi
     value: 10.5281/zenodo.24028643
     description: Concept DOI (all versions)
   - type: doi
     value: 10.5281/zenodo.24047711
-    description: Version 0.2.1
+    description: Version 0.2.1 (superseded)
   - type: doi
     value: 10.5281/zenodo.24047656
-    description: Version 0.2.0
+    description: Version 0.2.0 (superseded)
   - type: doi
     value: 10.5281/zenodo.24028644
     description: Version 0.1.0 (superseded; see CHANGELOG)

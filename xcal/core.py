@@ -1,8 +1,38 @@
+import numbers
+import warnings
 import numpy as np
 import pandas as pd
 from scipy.stats import norm, t as tdist
 
 COMPLEMENT = {"A": "T", "T": "A", "C": "G", "G": "C"}
+DF_LO, DF_HI = 4.0, 1e5
+MIN_PANEL = 20
+
+
+def _check_params(c, intercept, se_c=0.0, se_a=0.0):
+    for name, x in (("c", c), ("intercept", intercept), ("se_c", se_c), ("se_a", se_a)):
+        if not isinstance(x, numbers.Real) or not np.isfinite(x):
+            raise ValueError(f"{name} must be a finite real number (got {x!r})")
+    if c < 0:
+        raise ValueError(f"c must be >= 0 (got {c})")
+    if intercept <= 0:
+        raise ValueError(f"intercept must be > 0 (got {intercept})")
+    if se_c < 0 or se_a < 0:
+        raise ValueError("standard errors must be >= 0")
+
+
+def _check_K(K, n):
+    if not isinstance(K, numbers.Integral) or K < 2:
+        raise ValueError(f"K must be an integer >= 2 (got {K!r})")
+    if n < MIN_PANEL or n < 2 * K:
+        raise ValueError(f"panel too small for the jackknife: n = {n}, need n >= max({MIN_PANEL}, 2K)")
+
+
+def sd_from_eaf(eaf):
+    f = np.asarray(eaf, float)
+    if np.any(~np.isfinite(f)) or np.any((f < 0) | (f > 1)):
+        raise ValueError("allele frequencies must be finite and in [0, 1]")
+    return np.sqrt(2.0 * f * (1.0 - f))
 
 
 def standardize(G):
@@ -20,10 +50,13 @@ def standardize(G):
 
 
 def panel_moments(Z, v, ok=None):
+    """L = v'Rv and Q (estimate of v'Sigma^2 v) from a standardized panel Z (n x p) and a fixed vector v."""
     Z = np.asarray(Z, dtype=np.float64)
     v = np.asarray(v, dtype=np.float64)
     n = Z.shape[0]
-    p = int(np.count_nonzero(ok)) if ok is not None else int(np.count_nonzero(Z.std(0) > 0))
+    ok = (Z.std(0) > 0) if ok is None else np.asarray(ok, bool)
+    v = np.where(ok, v, 0.0)
+    p = int(np.count_nonzero(ok))
     u = Z @ v
     lin = float(u @ u) / n
     Rv = Z.T @ u / n
@@ -35,10 +68,18 @@ def panel_moments(Z, v, ok=None):
     return dict(L=lin, Q=Q, Q_untruncated=q_unb, Q_raw=raw, floor_active=bool(q_unb < floor), n=n, p=p)
 
 
-def jackknife_moments(Z, s, w, K=20, seed=0, blocks=None):
+def jackknife_moments(Z, v, K=20, seed=0, blocks=None):
+    """Delete-group jackknife replicates of (L, Q) with v held fixed.
+
+    Each replicate re-centres and re-scales the retained individuals (i.e. recomputes the sample
+    correlation matrix from their genotypes) while keeping v fixed, so the replicates describe the
+    panel-sampling variability of D-hat = a L + c Q for the fixed target D = a v'Sigma v + c v'Sigma^2 v.
+    """
     Z = np.asarray(Z, dtype=np.float64)
+    v = np.asarray(v, dtype=np.float64)
     n = Z.shape[0]
     if blocks is None:
+        _check_K(K, n)
         rng = np.random.default_rng(seed)
         blocks = np.array_split(rng.permutation(n), K)
     L, Q = [], []
@@ -51,57 +92,94 @@ def jackknife_moments(Z, s, w, K=20, seed=0, blocks=None):
         okk = sk > 1e-12
         Zs = np.zeros_like(Zk)
         Zs[:, okk] = (Zk[:, okk] - m[okk]) / sk[okk]
-        vk = np.where(okk, w * s * sk, 0.0)
-        mom = panel_moments(Zs, vk, okk)
+        mom = panel_moments(Zs, v, okk)
         L.append(mom["L"])
         Q.append(mom["Q"])
     return np.array(L), np.array(Q)
 
 
-def satterthwaite_df(D_blocks, D_full, lo=4.0, hi=1e5):
-    D_blocks = np.asarray(D_blocks, float)
-    K = D_blocks.shape[-1]
-    var = (K - 1) / K * np.sum((D_blocks - D_blocks.mean(-1, keepdims=True)) ** 2, axis=-1)
-    tau2 = var / np.asarray(D_full, float) ** 2
-    return np.clip(2.0 / np.maximum(tau2, 1e-12), lo, hi)
+def jackknife_var(x_blocks):
+    x = np.asarray(x_blocks, float)
+    K = x.shape[-1]
+    return (K - 1) / K * np.sum((x - x.mean(-1, keepdims=True)) ** 2, axis=-1)
 
 
-def xcal_from_moments(num, L, Q, c, intercept=1.0, L_blocks=None, Q_blocks=None):
+def satterthwaite_df(D_blocks, D_full, extra_var=0.0, lo=DF_LO, hi=DF_HI):
+    """nu = 2 / tau^2 with tau^2 = [Var_jk(D-hat) + extra_var] / D-hat^2, clipped to [lo, hi]."""
+    tau2 = (jackknife_var(D_blocks) + np.asarray(extra_var, float)) / np.asarray(D_full, float) ** 2
+    return np.clip(2.0 / np.maximum(tau2, 1e-300), lo, hi)
+
+
+def xcal_from_moments(num, L, Q, c, intercept=1.0, L_blocks=None, Q_blocks=None, se_c=0.0, se_a=0.0):
+    """XCAL statistic and (if jackknife replicates are given) XCAL-t p-value.
+
+    se_c / se_a: standard errors of c and of the intercept a (e.g. from estimate_c); their contribution
+    Q^2 se_c^2 + L^2 se_a^2 is added to the denominator variance used for the degrees of freedom.
+    """
+    _check_params(c, intercept, se_c, se_a)
+    L = np.asarray(L, float)
+    Q = np.asarray(Q, float)
     D = intercept * L + c * Q
-    zx = num / np.sqrt(D)
+    if np.any(~(D > 0)):
+        raise ValueError("non-positive denominator; check the panel and weights")
+    zx = np.asarray(num, float) / np.sqrt(D)
     out = dict(z_xcal=zx, p_xcal_normal=2 * norm.sf(np.abs(zx)), D=D)
     if L_blocks is not None:
-        df = satterthwaite_df(intercept * np.asarray(L_blocks) + c * np.asarray(Q_blocks), D)
+        Db = intercept * np.asarray(L_blocks, float) + c * np.asarray(Q_blocks, float)
+        df = satterthwaite_df(Db, D, extra_var=(Q * se_c) ** 2 + (L * se_a) ** 2)
         out["df"] = df
+        out["df_at_lower_clip"] = df <= DF_LO
         out["p_xcal_t"] = 2 * tdist.sf(np.abs(zx), df)
     return out
 
 
-def xcal_gene(w, z, G, c, intercept=1.0, K=20, seed=0):
+def xcal_gene(w, z, G, c, intercept=1.0, snp_sd=None, K=20, seed=0, se_c=0.0, se_a=0.0):
+    """XCAL-t for one gene.
+
+    w: weights on the allele-dosage scale; z: GWAS z-scores (same SNP order and allele);
+    G: n x p dosage matrix of an LD panel of the GWAS ancestry;
+    snp_sd: per-SNP genotype SD in the GWAS (e.g. sd_from_eaf(eaf)); recommended. If None, panel SDs are used
+    (v then depends on the panel and the jackknife is conditional on the panel SDs).
+    """
+    _check_params(c, intercept, se_c, se_a)
     w = np.asarray(w, float)
     z = np.asarray(z, float)
+    if w.ndim != 1 or z.ndim != 1:
+        raise ValueError("w and z must be one-dimensional")
+    if not (np.all(np.isfinite(w)) and np.all(np.isfinite(z))):
+        raise ValueError("w and z must be finite")
     Z, s, ok = standardize(G)
     if w.shape != z.shape or w.shape[0] != Z.shape[1]:
         raise ValueError("w, z and the genotype window must have matching SNP dimension")
-    v = np.where(ok, w * s, 0.0)
+    _check_K(K, Z.shape[0])
+    if snp_sd is None:
+        sd, source = s, "panel"
+    else:
+        sd = np.asarray(snp_sd, float)
+        if sd.shape != w.shape or np.any(~np.isfinite(sd)) or np.any(sd < 0):
+            raise ValueError("snp_sd must be finite, non-negative and match w")
+        source = "gwas"
+    v = np.where(ok, w * sd, 0.0)
     mom = panel_moments(Z, v, ok)
     if mom["L"] <= 0:
         return None
     num = float(v @ z)
-    Lb, Qb = jackknife_moments(Z, s, np.where(ok, w, 0.0), K=K, seed=seed)
-    res = xcal_from_moments(num, mom["L"], mom["Q"], c, intercept, Lb, Qb)
+    Lb, Qb = jackknife_moments(Z, v, K=K, seed=seed)
+    res = xcal_from_moments(num, mom["L"], mom["Q"], c, intercept, Lb, Qb, se_c, se_a)
     return dict(z_standard=num / np.sqrt(mom["L"]), L=mom["L"], Q=mom["Q"], q=mom["Q"] / mom["L"],
-                floor_active=mom["floor_active"], inflation_factor=res["D"] / mom["L"],
-                z_xcal=float(res["z_xcal"]), df=float(res["df"]), p_xcal_t=float(res["p_xcal_t"]),
-                p_xcal_normal=float(res["p_xcal_normal"]), n_panel=mom["n"])
+                floor_active=mom["floor_active"], inflation_factor=float(res["D"] / mom["L"]),
+                z_xcal=float(res["z_xcal"]), df=float(res["df"]), df_at_lower_clip=bool(res["df_at_lower_clip"]),
+                p_xcal_t=float(res["p_xcal_t"]), p_xcal_normal=float(res["p_xcal_normal"]),
+                n_panel=mom["n"], sd_source=source)
 
 
 def ld_scores(G, pos=None, window_bp=1_000_000):
     Z, s, ok = standardize(G)
     n, p = Z.shape
+    if n < 3:
+        raise ValueError("need at least 3 individuals for bias-corrected LD scores")
     pos = np.arange(p) if pos is None else np.asarray(pos)
-    order = np.argsort(pos, kind="stable")
-    if not np.all(order == np.arange(p)):
+    if np.any(np.diff(pos) < 0):
         raise ValueError("positions must be sorted")
     l = np.zeros(p)
     step = 2000
@@ -121,12 +199,21 @@ def ld_scores(G, pos=None, window_bp=1_000_000):
 
 
 def estimate_c(z, ld, n_blocks=200, fix_intercept=None):
+    """LD-score regression of z^2 on LD scores: returns c (slope), intercept a, block-jackknife SEs and cov(a, c)."""
     z = np.asarray(z, float)
     ld = np.asarray(ld, float)
+    if z.shape != ld.shape:
+        raise ValueError("z and ld must have the same length")
     ok = np.isfinite(z) & np.isfinite(ld)
     chi2 = z[ok] ** 2
     l = ld[ok]
     m = len(chi2)
+    if m < 1000:
+        raise ValueError(f"too few SNPs for LD-score regression ({m}); need >= 1000")
+    if np.std(l) < 1e-8 * max(1.0, abs(np.mean(l))):
+        raise ValueError("LD scores have no variation; slope is not identified")
+    if fix_intercept is not None:
+        _check_params(0.0, fix_intercept)
     if n_blocks and m < 10 * n_blocks:
         n_blocks = max(10, m // 10)
 
@@ -145,8 +232,11 @@ def estimate_c(z, ld, n_blocks=200, fix_intercept=None):
         return a, c
 
     a, c = fit(chi2, l)
+    if c < 0:
+        warnings.warn(f"estimated slope is negative ({c:.3g}); returning c = 0")
+    base = dict(c=max(c, 0.0), c_raw=c, intercept=a, n_snps=int(m), fixed_intercept=fix_intercept is not None)
     if n_blocks == 0:
-        return dict(c=max(c, 0.0), c_raw=c, se_c=float("nan"), intercept=a, se_intercept=float("nan"), n_snps=int(m), n_blocks=0)
+        return dict(base, se_c=float("nan"), se_intercept=float("nan"), cov_intercept_c=float("nan"), n_blocks=0)
     edges = np.linspace(0, m, n_blocks + 1).astype(int)
     jk = []
     for i in range(n_blocks):
@@ -154,9 +244,10 @@ def estimate_c(z, ld, n_blocks=200, fix_intercept=None):
         keep[edges[i]:edges[i + 1]] = False
         jk.append(fit(chi2[keep], l[keep]))
     jk = np.array(jk)
-    se = np.sqrt((n_blocks - 1) / n_blocks * ((jk - jk.mean(0)) ** 2).sum(0))
-    return dict(c=max(c, 0.0), c_raw=c, se_c=float(se[1]), intercept=a,
-                se_intercept=float(se[0]) if fix_intercept is None else 0.0, n_snps=int(m), n_blocks=int(n_blocks))
+    dev = jk - jk.mean(0)
+    cov = (n_blocks - 1) / n_blocks * dev.T @ dev
+    return dict(base, se_c=float(np.sqrt(cov[1, 1])), se_intercept=float(np.sqrt(cov[0, 0])) if fix_intercept is None else 0.0,
+                cov_intercept_c=float(cov[0, 1]) if fix_intercept is None else 0.0, n_blocks=int(n_blocks))
 
 
 def genomic_control(z):
@@ -166,20 +257,36 @@ def genomic_control(z):
 
 
 def harmonize(df, snp_alleles, effect_col="effect_allele", other_col="other_allele", value_col="weight"):
-    """Align a per-SNP value to the panel's counted allele (a1). Drops strand-ambiguous and mismatched SNPs."""
-    m = df.merge(snp_alleles[["snp", "a1", "a2"]], on="snp", how="left")
-    e = m[effect_col].str.upper()
-    o = m[other_col].str.upper()
-    ce = e.map(COMPLEMENT)
-    co = o.map(COMPLEMENT)
+    """Align per-SNP values to the panel's counted allele a1.
+
+    Returns a table whose effect/other allele columns are the panel's a1/a2 (original labels kept in
+    original_<col>), with the value sign-flipped where needed. Strand-ambiguous (A/T, C/G), mismatched and
+    absent SNPs are dropped. Repeated calls are stable.
+    """
+    pa = snp_alleles[["snp", "a1", "a2"]].copy()
+    pa["a1"] = pa["a1"].astype(str).str.upper()
+    pa["a2"] = pa["a2"].astype(str).str.upper()
+    dup = pa.snp[pa.snp.duplicated()].unique()
+    if len(dup):
+        raise ValueError(f"{len(dup)} duplicated SNPs in snp_alleles (e.g. {list(dup[:3])})")
+    m = df.drop(columns=[c for c in ("a1", "a2") if c in df]).merge(pa, on="snp", how="left")
+    e = m[effect_col].astype(str).str.upper()
+    o = m[other_col].astype(str).str.upper()
+    ce, co = e.map(COMPLEMENT), o.map(COMPLEMENT)
     same = ((e == m.a1) & (o == m.a2)) | ((ce == m.a1) & (co == m.a2))
     flip = ((e == m.a2) & (o == m.a1)) | ((ce == m.a2) & (co == m.a1))
-    ambiguous = (e.map(COMPLEMENT) == o)
+    ambiguous = ce == o
     status = np.select([m.a1.isna(), ambiguous, same, flip], ["not_in_panel", "ambiguous", "aligned", "flipped"], "mismatch")
     m["harmonize_status"] = status
     m[value_col] = np.where(status == "flipped", -m[value_col], m[value_col])
+    for col in (effect_col, other_col):
+        if f"original_{col}" not in m:
+            m[f"original_{col}"] = m[col]
     keep = np.isin(status, ["aligned", "flipped"])
-    return m[keep].drop(columns=["a1", "a2"]).reset_index(drop=True), m["harmonize_status"].value_counts().to_dict()
+    m.loc[keep, effect_col] = m.loc[keep, "a1"]
+    m.loc[keep, other_col] = m.loc[keep, "a2"]
+    report = pd.Series(status).value_counts().to_dict()
+    return m[keep].drop(columns=["a1", "a2"]).reset_index(drop=True), report
 
 
 def _check_unique(series, what):
@@ -189,16 +296,18 @@ def _check_unique(series, what):
 
 
 def run_xcal(weights, gwas, panel_genotypes, panel_snps, panel_pos, c, intercept=1.0, window_bp=1_000_000,
-             K=20, seed=0, min_coverage=0.0):
-    """XCAL / XCAL-t for every gene on one chromosome.
+             K=20, seed=0, min_coverage=0.0, se_c=0.0, se_a=0.0):
+    """XCAL-t for every gene on one chromosome.
 
-    weights: DataFrame[gene, snp, weight]; weights on the allele-dosage scale of the panel's counted allele
-    gwas: DataFrame[snp, z] aligned to the same allele
+    weights: DataFrame[gene, snp, weight] aligned to the panel's counted allele (see harmonize)
+    gwas: DataFrame[snp, z] plus, recommended, 'eaf' (GWAS frequency of the counted allele) or 'sd'
     panel_genotypes: n x p dosage matrix (no missing values) from a panel of the GWAS ancestry
-    panel_snps, panel_pos: SNP ids and positions of the panel columns
-    c: polygenic scale N*h2/M (estimate_c); intercept: LDSC intercept (1.0 = no confounding)
+    c, intercept (and optionally se_c, se_a): from estimate_c on the same GWAS
     Returns one row per gene; p_xcal_t is the recommended p-value.
     """
+    _check_params(c, intercept, se_c, se_a)
+    if not (0.0 <= min_coverage <= 1.0):
+        raise ValueError("min_coverage must be in [0, 1]")
     for col in ("gene", "snp", "weight"):
         if col not in weights:
             raise ValueError(f"weights is missing column '{col}'")
@@ -213,10 +322,19 @@ def run_xcal(weights, gwas, panel_genotypes, panel_snps, panel_pos, c, intercept
     G = np.asarray(panel_genotypes)
     if G.ndim != 2 or G.shape[1] != len(panel_snps) or len(panel_pos) != len(panel_snps):
         raise ValueError("panel_genotypes must be n x p with p = len(panel_snps) = len(panel_pos)")
+    _check_K(K, G.shape[0])
     if not np.all(np.isfinite(weights["weight"])) or not np.all(np.isfinite(gwas["z"])):
         raise ValueError("non-finite weights or z-scores")
+    if "sd" in gwas:
+        gsd = gwas["sd"].to_numpy(float)
+    elif "eaf" in gwas:
+        gsd = sd_from_eaf(gwas["eaf"].to_numpy(float))
+    else:
+        gsd = None
+        warnings.warn("gwas has no 'eaf' or 'sd' column; using panel SDs (XCAL-t df then conditional on the panel SDs)")
     col = pd.Series(np.arange(len(panel_snps)), index=panel_snps)
     zmap = pd.Series(gwas["z"].values, index=gwas["snp"].values)
+    sdmap = pd.Series(gsd, index=gwas["snp"].values) if gsd is not None else None
     out = []
     for gene, g in weights.groupby("gene", sort=False):
         total_w2 = float((g.weight ** 2).sum())
@@ -226,18 +344,19 @@ def run_xcal(weights, gwas, panel_genotypes, panel_snps, panel_pos, c, intercept
         row = dict(gene=gene, n_snps_model=len(g), n_not_in_panel=int((~in_panel).sum()),
                    n_not_in_gwas=int((in_panel & ~in_gwas).sum()), n_snps_used=len(use),
                    weight_coverage=float((use.weight ** 2).sum() / total_w2) if total_w2 > 0 else 0.0)
-        if use.empty or row["weight_coverage"] < min_coverage:
+        if use.empty or row["weight_coverage"] < min_coverage or row["weight_coverage"] == 0:
             out.append(dict(row, status="insufficient_coverage"))
             continue
         widx = col[use.snp].values
         lo, hi = panel_pos[widx].min() - window_bp, panel_pos[widx].max() + window_bp
         win = np.where((panel_pos >= lo) & (panel_pos <= hi))[0]
         loc = np.searchsorted(win, widx)
-        w = np.zeros(len(win))
-        z = np.zeros(len(win))
+        w = np.zeros(len(win)); z = np.zeros(len(win)); sdw = np.zeros(len(win))
         w[loc] = use.weight.values
         z[loc] = zmap[use.snp].values
-        r = xcal_gene(w, z, G[:, win], c, intercept, K, seed)
+        if sdmap is not None:
+            sdw[loc] = sdmap[use.snp].values
+        r = xcal_gene(w, z, G[:, win], c, intercept, sdw if sdmap is not None else None, K, seed, se_c, se_a)
         if r is None:
             out.append(dict(row, n_window_snps=len(win), status="zero_variance"))
             continue

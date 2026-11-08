@@ -26,6 +26,7 @@ def one(i):
         Z, s, ok = standardize(r[f"{p}_gwas"])
         R = Z.T @ Z / Z.shape[0]
         out[f"{p}_R_gwas"] = R.astype(np.float32)
+        out[f"{p}_sd_gwas"] = s.astype(np.float64)
         out[f"{p}_n_gwas"] = np.array(Z.shape[0])
     np.savez_compressed(f + ".tmp.npz", **out)
     os.replace(f + ".tmp.npz", f)

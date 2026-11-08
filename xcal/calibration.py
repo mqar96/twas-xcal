@@ -14,13 +14,14 @@ class Panel:
         self.R = self.Z.T @ self.Z / self.n
 
     def v(self, w):
+        """v = w * panel SDs (panel-SD scaling)."""
         return np.where(self.ok, w * self.s, 0.0)
 
-    def moments(self, w):
-        return panel_moments(self.Z, self.v(w), self.ok)
+    def moments(self, v):
+        return panel_moments(self.Z, v, self.ok)
 
-    def jackknife(self, w, K=20, seed=0):
-        return jackknife_moments(self.Z, self.s, np.where(self.ok, w, 0.0), K=K, seed=seed)
+    def jackknife(self, v, K=20, seed=0):
+        return jackknife_moments(self.Z, v, K=K, seed=seed)
 
 
 def true_var(v, R_gwas, c, intercept=1.0):

@@ -1,7 +1,7 @@
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
-from .core import (standardize, panel_moments, jackknife_moments, satterthwaite_df, xcal_from_moments,
-                   xcal_gene, run_xcal, estimate_c, ld_scores, genomic_control, harmonize)
+from .core import (standardize, panel_moments, jackknife_moments, jackknife_var, satterthwaite_df, xcal_from_moments,
+                   xcal_gene, run_xcal, estimate_c, ld_scores, genomic_control, harmonize, sd_from_eaf)
 
-__all__ = ["standardize", "panel_moments", "jackknife_moments", "satterthwaite_df", "xcal_from_moments",
-           "xcal_gene", "run_xcal", "estimate_c", "ld_scores", "genomic_control", "harmonize", "__version__"]
+__all__ = ["standardize", "panel_moments", "jackknife_moments", "jackknife_var", "satterthwaite_df", "xcal_from_moments",
+           "xcal_gene", "run_xcal", "estimate_c", "ld_scores", "genomic_control", "harmonize", "sd_from_eaf", "__version__"]

@@ -51,9 +51,51 @@ jobs:
       - name: Tiny pipeline
         run: |
           W=$(mktemp -d)
-          python scripts/01_simulate_genotypes.py $W/geno --n-regions 3 --jobs 2
+          python scripts/01_simulate_genotypes.py $W/geno --n-regions 6 --jobs 2
           python scripts/02_train_weights.py $W/geno $W/weights --genes-per-region 4 --jobs 2
           python scripts/03_null_benchmark.py $W/geno $W/weights $W/bench --reps 2000 --jobs 2
-          python scripts/05_analyze_null.py $W/bench $W/res --boot 50
-          python scripts/08_estimated_c_benchmark.py $W/geno $W/weights $W/estc.csv --genomes 5
+          python scripts/05_analyze_null.py $W/res --benchdir $W/bench --lambda-only --boot 50
+          python scripts/03_null_benchmark.py $W/geno $W/weights $W/bench --reps 2000 --jobs 2 --gc-lambda $W/res/table_gc_lambda.csv
+          python scripts/05_analyze_null.py $W/res --benchdir $W/bench --boot 50
+          python scripts/08_estimated_c_benchmark.py $W/geno $W/weights $W/estc.csv --genomes 5 --boot 50 --chromosomes 3
           test -s $W/res/table_null_counts.csv
+
+  windows:
+    name: Windows wheel install + tests
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and install wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          pip install dist/*.whl pytest
+      - name: Run tests against the installed wheel
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/t" && cp tests/*.py "$RUNNER_TEMP/t/" && cd "$RUNNER_TEMP/t"
+          python -c "import xcal; print(xcal.__version__, xcal.__file__)"
+          python -m pytest -q .
+
+  min-optional:
+    name: minimum optional-dependency versions (real extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install minimum versions
+        run: |
+          pip install "numpy==1.24.4" "scipy==1.10.1" "pandas==2.2.0" "bed-reader==1.0.0" "matplotlib==3.9.0" pytest
+          pip install --no-deps .
+      - name: Import checks and tests
+        run: |
+          python -c "import xcal, bed_reader, matplotlib; print(xcal.__version__)"
+          python -m pytest -q tests

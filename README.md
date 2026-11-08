@@ -95,7 +95,7 @@ Each step writes a provenance record (git revision, dirty flag, module path, sou
 The per-gene raw counts of the main benchmark are in `results/raw/null_benchmark_per_gene.csv.gz`; `05_analyze_null.py --combined` rebuilds every table from it.
 
 ## Citation
-> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.3.0). Zenodo. [V030_DOI]
+> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.3.0). Zenodo. [doi:10.5281/zenodo.24062489](https://doi.org/10.5281/zenodo.24062489)
 
 See [`CITATION.cff`](CITATION.cff). All versions: concept DOI [10.5281/zenodo.24028643](https://doi.org/10.5281/zenodo.24028643).
 

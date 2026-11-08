@@ -22,6 +22,9 @@ date-released: 2026-11-08
 doi: 10.5281/zenodo.24028643
 identifiers:
   - type: doi
+    value: 10.5281/zenodo.24062489
+    description: Version 0.3.0
+  - type: doi
     value: 10.5281/zenodo.24028643
     description: Concept DOI (all versions)
   - type: doi

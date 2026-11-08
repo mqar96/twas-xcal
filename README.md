@@ -58,9 +58,9 @@ Derivation, estimator, jackknife and limits: [`docs/METHODS.md`](docs/METHODS.md
 
 ## Installation
 ```bash
-pip install "twas-xcal @ git+https://github.com/mqar96/twas-xcal@v0.2.0"
+pip install "twas-xcal @ git+https://github.com/mqar96/twas-xcal@v0.2.1"
 # extras for the benchmarks:
-pip install "twas-xcal[sim,real] @ git+https://github.com/mqar96/twas-xcal@v0.2.0"
+pip install "twas-xcal[sim,real] @ git+https://github.com/mqar96/twas-xcal@v0.2.1"
 ```
 Requires Python ≥ 3.10.
 
@@ -99,7 +99,7 @@ python -m pytest tests                # unit tests (incl. the audit counterexamp
 | Panel size, power, estimated c | `06`, `07`, `08` → `09_analyze_extra.py` |
 
 ## Citation
-> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.24047656
+> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.2.1). Zenodo. https://doi.org/10.5281/zenodo.24047711
 
 See [`CITATION.cff`](CITATION.cff). All versions: concept DOI [10.5281/zenodo.24028643](https://doi.org/10.5281/zenodo.24028643).
 

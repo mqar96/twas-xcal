@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-08
+Second corrective release, responding to the author's re-audit of v0.2.1. All results were regenerated from a clean pipeline with per-step provenance.
+
+### Changed (statistical method)
+- **XCAL-t reference distribution (re-audit F1).** Weights are now scaled by **GWAS allele-frequency SDs** (`snp_sd`, `sd_from_eaf`; a `gwas.eaf` or `gwas.sd` column in `run_xcal`). The target null variance D is then fixed. The delete-group jackknife **holds v fixed** and recomputes only the panel correlation, so it estimates Var(D̂/D) as the derivation requires. In the one-SNP case the jackknife variance is now 0 and the reference is normal (unit test). The panel-SD fallback is retained with a warning and reported separately.
+- **Uncertainty in a and c (F2).** `xcal_from_moments`, `xcal_gene` and `run_xcal` accept `se_c` and `se_a` and add Q̂²se_c² + L̂²se_a² to the denominator variance. `estimate_c` returns the a–c covariance and rejects degenerate input.
+- The approximation is described as an approximation. The claim that it is provably conservative was removed.
+
+### Changed (benchmarks)
+- Estimated-parameter benchmark (F2): **leave-one-chromosome-out** fitting, 300 genomes per setting, confounded GWAS (a = 1.1), propagated SEs and two-way bootstrap CIs. The invalid same-data tail prediction was removed. Conditional rates are reported only where the fitted parameters are independent of the tested statistics.
+- **Genomic control is now counted exactly (F6)** in a second deterministic pass at the λ estimated in the first pass. 2,000 bootstrap resamples for every method.
+- The comparator is labelled "adapted variance control (EUR q)" (F3).
+- Figure 2 and Figure 5 whiskers are the 5th–95th percentiles, as stated in the legends (F12).
+
+### Fixed (software)
+- Parameter and input validation (F7): finite c ≥ 0, intercept > 0, SEs ≥ 0, 2 ≤ K with n ≥ max(20, 2K), one-dimensional finite vectors, and coverage in [0, 1].
+- `harmonize` (F8) writes the panel alleles into the effect/other columns, keeps the original labels, is idempotent, normalizes case and rejects duplicate panel SNPs.
+- `matplotlib>=3.9` (F9). All text outputs are UTF-8, and `run_all.sh` sets `PYTHONUTF8=1`.
+- Resumable steps check configuration hashes. The real-genotype configuration hashes genotype files, model and extra files, and source code (F10). Per-region checkpoints were added to scripts 04, 06, 07 and 08, and atomic writes to 02.
+- Provenance (F5): `scripts/provenance.py` records the command, git revision and dirty state, imported module path and version, source hashes, environment and timing for every step and attempt. `MANIFEST.json` includes these records. The v0.2.x manifest's "0.1.0" entry was stale editable-install metadata.
+
+### Added
+- Real-GWAS application (`realdata/gwas_application.py`): BioBank Japan height (N = 159,095) with 1000 Genomes East Asian LD and MESA models.
+- `05_analyze_null.py --combined` reproduces every null-benchmark table from the archived per-gene raw file alone.
+
 ## [0.2.1] - 2026-11-08
 ### Removed
 - Obsolete `scripts/03_null_calibration.py` (v0.1.0 analytic benchmark; replaced by `03_null_benchmark.py`, and it imported functions removed in 0.2.0).

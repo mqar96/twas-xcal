@@ -49,18 +49,28 @@ say(f"matched SNPs: {len(ss):,} of {len(bim):,} panel SNPs ({time.time() - t0:.0
 
 with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
     n_target = bed.iid_count
-ldl = np.full(len(bim), np.nan)
-for chrom in range(1, 23):
-    idx = bim.index[bim.chr == chrom].values
-    with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
-        X = bed.read(index=np.s_[:, idx], dtype="float32")
-    X = np.where(X < 0, np.nan, X)
-    X = np.where(np.isnan(X), np.nanmean(X, 0), X)
-    ldl[idx] = ld_scores(X, bim.pos.values[idx], window_bp=WIN)
-    say(f"LD scores chr{chrom} ({time.time() - t0:.0f}s)")
+ldf = f"{a.outdir}/ld_scores_{a.target}.npy"
+if os.path.exists(ldf):
+    ldl = np.load(ldf)
+else:
+    ldl = np.full(len(bim), np.nan)
+    for chrom in range(1, 23):
+        idx = bim.index[bim.chr == chrom].values
+        with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
+            X = bed.read(index=np.s_[:, idx], dtype="float32")
+        X = np.where(X < 0, np.nan, X)
+        X = np.where(np.isnan(X), np.nanmean(X, 0), X)
+        ldl[idx] = ld_scores(X, bim.pos.values[idx], window_bp=WIN)
+        say(f"LD scores chr{chrom} ({time.time() - t0:.0f}s)")
+    np.save(ldf + ".tmp.npy", ldl); os.replace(ldf + ".tmp.npy", ldf)
 ss["ld"] = ldl[ss.idx.values]
-fit_free = estimate_c(ss.z.values, ss.ld.values, n_blocks=200)
-fit_fixed = estimate_c(ss.z.values, ss.ld.values, n_blocks=200, fix_intercept=1.0)
+fitf = f"{a.outdir}/ldsc_fits.json"
+if os.path.exists(fitf):
+    fit_free, fit_fixed = json.load(open(fitf))
+else:
+    fit_free = estimate_c(ss.z.values, ss.ld.values, n_blocks=200)
+    fit_fixed = estimate_c(ss.z.values, ss.ld.values, n_blocks=200, fix_intercept=1.0)
+    json.dump([fit_free, fit_fixed], open(fitf, "w"))
 M = int(np.isfinite(ss.ld).sum())
 say("LDSC free intercept:", json.dumps(fit_free), "\nLDSC fixed intercept:", json.dumps(fit_fixed))
 say(f"implied N*h2 = c*M = {fit_free['c'] * M:,.0f} (M = {M:,}); h2_SNP ~ {fit_free['c'] * M / a.n_gwas:.3f}")
@@ -92,10 +102,18 @@ def std(X):
 
 
 rows = []
+os.makedirs(f"{a.outdir}/per_chr", exist_ok=True)
 for chrom in range(1, 23):
+    pcf = f"{a.outdir}/per_chr/chr{chrom}.csv"
+    if os.path.exists(pcf):
+        if os.path.getsize(pcf) > 1:
+            rows.extend(pd.read_csv(pcf).to_dict("records"))
+        continue
+    r0 = len(rows)
     bc = bim[bim.chr == chrom]
     Wc = W[W.chr == chrom]
     if Wc.empty:
+        open(pcf, "w").write("")
         continue
     with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
         ZT, sT, okT = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
@@ -128,6 +146,7 @@ for chrom in range(1, 23):
         for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):
             r[k.replace("z_", "p_")] = 2 * norm.sf(abs(r[k]))
         rows.append(r)
+    pd.DataFrame(rows[r0:]).to_csv(pcf + ".tmp", index=False); os.replace(pcf + ".tmp", pcf)
     say(f"chr{chrom}: {len(rows):,} models ({time.time() - t0:.0f}s)")
 R = pd.DataFrame(rows)
 R.to_csv(f"{a.outdir}/application_per_model.csv.gz", index=False)

@@ -125,7 +125,7 @@ def xcal_from_moments(num, L, Q, c, intercept=1.0, L_blocks=None, Q_blocks=None,
     num = np.asarray(num, float)
     if not np.all(np.isfinite(num)):
         raise ValueError("numerator must be finite")
-    if L_blocks is not None and (np.asarray(L_blocks).shape[0] < 2 or np.asarray(Q_blocks).shape != np.asarray(L_blocks).shape):
+    if L_blocks is not None and (np.asarray(L_blocks).shape[-1] < 2 or np.asarray(Q_blocks).shape != np.asarray(L_blocks).shape):
         raise ValueError("jackknife replicates must have at least two blocks and matching L/Q shapes")
     zx = num / np.sqrt(D)
     out = dict(z_xcal=zx, p_xcal_normal=2 * norm.sf(np.abs(zx)), D=D)

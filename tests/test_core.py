@@ -245,3 +245,8 @@ def test_xcal_from_moments_rejects_bool_nan_and_single_block():
         xcal_from_moments(float("nan"), 1.0, 1.0, c=0.1)
     with pytest.raises(ValueError):
         xcal_from_moments(1.0, 1.0, 1.0, c=0.1, L_blocks=np.array([1.0]), Q_blocks=np.array([1.0]))
+    with pytest.raises(ValueError):
+        xcal_from_moments(np.ones(20), np.ones(20), np.ones(20), c=0.1, L_blocks=np.ones((20, 1)), Q_blocks=np.ones((20, 1)))
+    r = xcal_from_moments(np.array([1.0]), np.array([1.0]), np.array([1.0]), c=0.1,
+                          L_blocks=np.ones((1, 20)) + 0.01 * np.arange(20), Q_blocks=np.ones((1, 20)))
+    assert np.all(r["df"] >= 4)

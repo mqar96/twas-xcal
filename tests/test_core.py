@@ -223,3 +223,16 @@ def test_estimate_c_rejects_degenerate_input():
         estimate_c(np.ones(500), np.ones(500))
     with pytest.raises(ValueError):
         estimate_c(np.random.default_rng(0).normal(size=5000), np.full(5000, 3.0))
+
+
+def test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds():
+    rng = np.random.default_rng(11)
+    G = rng.binomial(2, 0.3, size=(300, 4)).astype(float)
+    G[:, 2] = 0.0
+    w = np.array([0.2, -0.1, 5.0, 0.3])
+    z = np.array([1.0, -0.5, 40.0, 0.2])
+    sd = np.full(4, 0.6)
+    full = xcal_gene(w, z, G, c=0.1, snp_sd=sd)
+    ref = xcal_gene(np.delete(w, 2), np.delete(z, 2), np.delete(G, 2, axis=1), c=0.1, snp_sd=np.delete(sd, 2))
+    assert np.isclose(full["z_xcal"], ref["z_xcal"])
+    assert np.isclose(full["df"], ref["df"])

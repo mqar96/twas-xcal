@@ -33,6 +33,8 @@ Here R̂ is the sample correlation matrix of an LD panel of the GWAS ancestry, w
 
 **Recommended scaling: GWAS SDs.** Use v = w ∘ s_GWAS, with s_GWAS = sqrt(2 f (1 − f)) from the GWAS allele frequencies (`sd_from_eaf`). Then v does not depend on the panel, and the target D = a v'Σv + c v'Σ²v is a fixed number.
 
+**SNPs the panel cannot describe.** A weight SNP that is missing or monomorphic in the LD panel is removed from v (numerator and denominator alike), and the lost share of squared weight is reported as coverage. Keeping it in the numerator while the panel denominator ignores it underestimates D; with panel SDs this happens implicitly because ŝ = 0, but with GWAS SDs it must be done explicitly (`xcal_gene` does so; unit test `test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds`). In the simulation benchmark no gene model had weight on such a SNP (0 of 3,554 per ancestry); in 1000 Genomes half-panels it occurs.
+
 **Fallback: panel SDs.** If GWAS frequencies are unavailable, v = w ∘ ŝ_panel. The inference below is then conditional on the panel SDs, and the package warns about it.
 
 ## 3. Estimating v'Σ²v
@@ -50,7 +52,7 @@ The floor is the Cauchy–Schwarz bound v'Σ²v ≥ (v'Σv)²/v'v, which holds f
 | Setting | Relative bias of Q̂ | Floor activation |
 |---|---|---|
 | 48 Gaussian settings (n = 250–1,000; same-sign, opposite-sign, dense and low-eigenvalue weights) | −4.5% to +2.8% | up to 19.4% (hardest setting) |
-| Simulated genotype panels | reported in the genotype table | |
+| 500-person simulated genotype panels vs 20,000-person LD (3,540 models per ancestry) | −0.4% to −1.0% (uncorrected plug-in: +5.2% to +9.0%) | 0% |
 
 This is an empirical characterization of approximate unbiasedness, not a theorem. The v0.1.0 floor at the linear form (which forced q ≥ 1) was biased by up to +113% in the Gaussian grid. The uncorrected plug-in was biased by up to +171%.
 
@@ -73,6 +75,8 @@ v0.2 recomputed v inside the jackknife. That estimated Var(D̂) for a target tha
 - ν is clipped to [4, 10⁵]; the share of models at each clip is reported.
 
 The rule is therefore an approximation whose type-I behaviour we **validate by counting** (Section 6). We do not claim it is proven conservative.
+
+**What the counting showed (v0.3.0).** With known a and c, XCAL-t was slightly liberal: counted ratios 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6, in line with the analytic prediction for the same panels (1.00–1.08 and 1.01–1.13). The excess persisted with 5,000-person panels (0.94–1.10), so it reflects the small negative bias of Q̂ and the scaled-χ² approximation rather than panel size. With a and c estimated leave-one-chromosome-out and their SEs propagated, conditional ratios were 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6.
 
 **Panel-SD fallback.** With v = w ∘ ŝ_panel, the same computation holds v fixed at the panel SDs. It approximates the variance of D̂ conditional on ŝ. The benchmark reports this variant separately.
 

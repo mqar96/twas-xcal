@@ -131,7 +131,7 @@ for ch in chroms:
                         vE[Sl] = wa * P["EUR"]["full"][1][lo:hi][Sl]
                     mB_vE = panel_moments(ZB, vE, okB)
                     mF = moments(P[p]["full"], lo, hi, Sl, wa)[0]
-                    vG = np.zeros(hi - lo); vG[Sl] = wa * sB[Sl]
+                    vG = np.zeros(hi - lo); vG[Sl] = wa * sB[Sl]; vG[~okA] = 0.0  # SNPs the panel cannot describe are dropped from numerator and denominator
                     mA_G = panel_moments(ZA, vG, okA)
                     mB_vG = panel_moments(ZB, vG, okB)
                     Lb, Qb = jackknife_moments(ZA, vG, blocks=blocks[p])

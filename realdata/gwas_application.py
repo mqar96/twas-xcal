@@ -74,7 +74,17 @@ else:
 M = int(np.isfinite(ss.ld).sum())
 say("LDSC free intercept:", json.dumps(fit_free), "\nLDSC fixed intercept:", json.dumps(fit_fixed))
 say(f"implied N*h2 = c*M = {fit_free['c'] * M:,.0f} (M = {M:,}); h2_SNP ~ {fit_free['c'] * M / a.n_gwas:.3f}")
-c, aint, se_c, se_a = fit_free["c"], max(fit_free["intercept"], 1.0), fit_free["se_c"], fit_free["se_intercept"]
+loof = f"{a.outdir}/ldsc_loco.json"
+if os.path.exists(loof):
+    loco = {int(k): v for k, v in json.load(open(loof)).items()}
+else:
+    chr_ss = ss.CHR.astype(int).values
+    loco = {}
+    for chrom in range(1, 23):
+        keep = chr_ss != chrom
+        loco[chrom] = estimate_c(ss.z.values[keep], ss.ld.values[keep], n_blocks=200)
+        say(f"LOCO LDSC without chr{chrom}: c = {loco[chrom]['c']:.4f}, a = {loco[chrom]['intercept']:.3f}")
+    json.dump(loco, open(loof + ".tmp", "w")); os.replace(loof + ".tmp", loof)
 
 zmap = pd.Series(ss.z.values, index=ss.idx.values)
 sdmap = pd.Series(sd_from_eaf(ss.eaf_a1.values), index=ss.idx.values)
@@ -116,6 +126,8 @@ for chrom in range(1, 23):
             rows.extend(pd.read_csv(pcf).to_dict("records"))
         continue
     r0 = len(rows)
+    fc = loco[chrom]
+    c, aint, se_c, se_a = fc["c"], max(fc["intercept"], 1.0), fc["se_c"], fc["se_intercept"]
     bc_all = bim[bim.chr == chrom]
     Wc_all = W[W.chr == chrom]
     gmin = Wc_all.groupby(["set", "gene"]).pos.min()
@@ -138,7 +150,7 @@ for chrom in range(1, 23):
             w = np.zeros(hi - lo); w[sl] = g.w.values
             zw = np.zeros(hi - lo); zw[sl] = zmap[g.idx.values].values
             gsd = np.zeros(hi - lo); gsd[sl] = sdmap[g.idx.values].values
-            vG, vT, vE = w * gsd, w * sT[lo:hi], w * sE[lo:hi]
+            vG, vT, vE = np.where(okT[lo:hi], w * gsd, 0.0), w * sT[lo:hi], w * sE[lo:hi]
             ZTw, ZEw = ZT[:, lo:hi].astype(np.float64), ZE[:, lo:hi].astype(np.float64)
             mG = panel_moments(ZTw, vG, okT[lo:hi]); mT = panel_moments(ZTw, vT, okT[lo:hi])
             mE = panel_moments(ZEw, vE, okE[lo:hi])
@@ -152,7 +164,7 @@ for chrom in range(1, 23):
             r = dict(set=s, gene=gene, genename=g.genename.iloc[0], chr=chrom, n_snps=len(g),
                      z_standard_target=zT / np.sqrt(mT["L"]), z_standard_eur=zE / np.sqrt(mE["L"]),
                      z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (1 + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (1 + c * qE)),
-                     z_xcal=zG / np.sqrt(D), df_xcalt=df, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
+                     z_xcal=zG / np.sqrt(D), df_xcalt=df, c_used=c, a_used=aint, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
             r["p_xcalt"] = 2 * tdist.sf(abs(r["z_xcal"]), df)
             for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):
                 r[k.replace("z_", "p_")] = 2 * norm.sf(abs(r[k]))
@@ -176,7 +188,7 @@ S = pd.DataFrame(S)
 S.to_csv(f"{a.outdir}/application_summary.csv", index=False)
 ratio = (R.q_target / R.q_eur).describe(percentiles=[.05, .5, .95])
 ratio.to_csv(f"{a.outdir}/application_q_ratio.csv")
-json.dump(dict(fit_free=fit_free, fit_fixed=fit_fixed, M=M, n_gwas=a.n_gwas, matched_snps=int(len(ss)), n_models=n,
+json.dump(dict(fit_free=fit_free, fit_fixed=fit_fixed, loco={str(k): dict(c=v["c"], se_c=v["se_c"], intercept=v["intercept"], se_intercept=v["se_intercept"]) for k, v in loco.items()}, M=M, n_gwas=a.n_gwas, matched_snps=int(len(ss)), n_models=n,
                sumstats_md5=hashlib.md5(open(a.sumstats, "rb").read()).hexdigest()), open(f"{a.outdir}/application_ldsc.json", "w"), indent=1)
 
 fig, ax = plt.subplots(figsize=(6.2, 5.6))

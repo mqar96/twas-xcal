@@ -69,7 +69,7 @@ if a.power:
             for N, mk in [(50_000, "o"), (200_000, "s")]:
                 s_ = T[(T.gwas_pop == g) & (T.N == N)].sort_values("q2")
                 ax.plot(s_.q2 * 100, s_[f"power_{m}"], st, color=col, marker=mk, ms=4,
-                        label=f"{ {'XCALt': 'XCAL-t', 'VCeur': 'VC (EUR Φ)'}.get(m, m)}, N={N // 1000}k")
+                        label=f"{ {'XCALt': 'XCAL-t', 'VCeur': 'Adapted VC (EUR q)'}.get(m, m)}, N={N // 1000}k")
         ax.set_xscale("log"); ax.set_xlabel("Trait variance explained by gene (%)"); ax.grid(alpha=.25, lw=.5)
         ax.set_title({"CEU": "European-ancestry GWAS", "CHB": "East Asian-ancestry GWAS", "YRI": "African-ancestry GWAS"}[g], fontsize=11)
     axs[0].set_ylabel("Power at α = 2.5e-6")

@@ -2,7 +2,7 @@
 # Regenerates every SIMULATION table and figure in results/ from an empty working directory.
 # Real-genotype results: see realdata/README.md (separate, needs 1000 Genomes + MESA inputs).
 # Each step is wrapped by scripts/provenance.py (commit, module path, source hashes, environment, timings).
-# Usage: bash scripts/run_all.sh WORKDIR [JOBS]        Time on 2 CPU cores: about 4.5 h.
+# Usage: bash scripts/run_all.sh WORKDIR [JOBS]        Time on 2 CPU cores: about 6 h.
 set -euo pipefail
 export PYTHONUTF8=1
 W=${1:-work}; J=${2:-2}
@@ -25,5 +25,7 @@ P 09_analyze_extra "$S/09_analyze_extra.py" --indiv "$W/indiv.csv" --panel "$W/p
 cp "$W/indiv.csv" "$R/individual_level_validation_raw.csv"
 cp "$W/power.csv" "$R/power_raw.csv"
 cp "$W/panel.csv" "$R/panel_size_raw.csv"
+cp "$W/estc.csv" "$R/estimated_c_raw.csv"
+cp "$W/estc_c_estimates.csv" "$R/estimated_c_fits_raw.csv"
 mkdir -p "$R/provenance" && cp "$W"/provenance/*.json "$R/provenance/"
 python "$S/10_manifest.py" "$R"

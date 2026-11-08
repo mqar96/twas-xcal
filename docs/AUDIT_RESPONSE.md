@@ -13,10 +13,18 @@ The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are 
 | F6 | GC grid-interpolated, 300 bootstraps. | GC is counted exactly in a second deterministic pass, with 2,000 bootstraps for every method. |
 | F7 | Invalid c, intercept and K accepted. | Validation and targeted tests added. |
 | F8 | Harmonized values kept old allele labels. | Labels are updated, originals kept, calls are idempotent; case is normalized and duplicate panel SNPs rejected; tests added. |
-| F9 | Matplotlib floor; Windows cp1252 failure. | `matplotlib>=3.9`; UTF-8 for all text output; `PYTHONUTF8=1` in `run_all.sh`. |
+| F9 | Matplotlib floor; Windows cp1252 failure. | `matplotlib>=3.9`; UTF-8 for all text output; `PYTHONUTF8=1` in `run_all.sh`. CI now also runs a Windows wheel job and a minimum optional-dependency job (bed-reader 1.0, matplotlib 3.9, pandas 2.2, numpy 1.24, scipy 1.10). |
 | F10 | One-command scope; raw-file reproduction; resume validation. | `run_all.sh` is documented as simulation-only, with the real-genotype and real-GWAS steps documented separately. `05_analyze_null.py --combined` rebuilds every null table from the archived raw file. Configuration-hash resume checks cover the simulation and real pipelines. |
 | F11 | Reviewer and assistance statements. | The acknowledgment now states that the author audited the work. The AI-use statement describes the assistance; no colleague is credited. |
 | F12 | Legend whiskers, METHODS numbers and factorization, CADET authors, release notes, metadata, presentation. | Whiskers set to 5th–95th percentiles; METHODS corrected; all reference author lists regenerated from Crossref (APA 7); old release notes marked superseded; repository About text updated; equations, line numbers and figure fonts improved. |
+
+### What changed in the results
+- **XCAL-t is now close to nominal rather than conservative.** v0.2.1 reported 0.68–0.90 of nominal at α = 2.5e-6. With the corrected jackknife, counted ratios are 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6 (known a and c), matching the analytic prediction. The excess persists with 5,000-person panels, so it is reported as a property of the approximation.
+- **Estimated a and c (LOCO, SEs propagated)**: conditional ratios 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6, including confounded GWAS.
+- **Genomic control (exact counts)**: 1.1–6.1× at α = 10⁻⁴ and up to 26× at α = 2.5e-6.
+- **Sparse architectures**: XCAL-t 0.97–1.01× the exact-variance oracle at α = 10⁻⁴ (v0.2.1: 0.85–0.97×).
+- **Power**: XCAL-t loses at most 6.5% relative to the oracle (v0.2.1: up to 23%).
+- **Biobank Japan height**: λ 2.75 (standard) → 1.09 (XCAL-t).
 
 ## Independent audit of v0.1.0 (7 November 2026)
 

@@ -14,4 +14,17 @@ The resulting type-I error ratios are therefore **model-based predictions**, not
 | 4. Run | `python realdata/real_calibration.py --geno /path/to/geno_dir/1000G_{} --models models --out out/real` | About 2 h on 2 cores; peak RAM about 3 GB. Resumes per chromosome only when the configuration hash matches. |
 | 5. Analyse | `python realdata/analyze_real.py out/real.csv.gz results/real` | |
 
+## Real-GWAS application: Biobank Japan height
+`gwas_application.py` applies all methods to BOLT-LMM height summary statistics from Biobank Japan (Akiyama et al., *Nat Commun* 2019; N = 159,095).
+
+1. Request and download `hum0014.v15.ht.v1` from the NBDC Human Database (https://humandbs.dbcls.jp/en/hum0014-v15; unrestricted-access data under NBDC terms) and unzip `2019_BBJ_Height_autosomes_BOLT.txt.gz`.
+2. Run
+   ```bash
+   python realdata/gwas_application.py --sumstats 2019_BBJ_Height_autosomes_BOLT.txt.gz \
+       --geno /path/to/1000G_{} --models models --outdir out/app --threads 2
+   ```
+   About 1 h on 2 cores and under 2 GB RAM. Steps are cached and resumable (LD scores, genome-wide and leave-one-chromosome-out LDSC fits, per-chromosome results).
+
+Variants are kept with imputation R² ≥ 0.8 and allele frequency 0.01–0.99, matched to 1000 Genomes by position and alleles; GWAS SDs come from the reported allele frequencies; LD comes from the 504 East Asian individuals. Outputs (in `results/application/`): `application_summary.csv` (λ and Bonferroni counts per method), `application_per_model.csv.gz`, `application_ldsc.json` (genome-wide and LOCO fits), `application_q_ratio.csv` and `fig_application_qq.png`. There is no ground truth, so this is a descriptive comparison.
+
 The MESA models are distributed by their authors (Mogil et al., *PLoS Genetics* 2018) under their own terms. This repository's MIT license covers only the code.

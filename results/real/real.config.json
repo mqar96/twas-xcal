@@ -1,0 +1,26 @@
+{
+ "version": "0.2.0",
+ "window_bp": 1000000,
+ "K": 20,
+ "chunk": 25000000,
+ "pad": 5000000,
+ "split_seed": 2026,
+ "pops": [
+  "AFR",
+  "EUR",
+  "EAS",
+  "SAS",
+  "AMR"
+ ],
+ "sets": [
+  "AFA",
+  "CAU",
+  "HIS"
+ ],
+ "models_md5": {
+  "AFA": "10a6ecc3e42b9e9c16b39de052d715b5",
+  "CAU": "cf0115866d48b2ea1ab660d4a367efe8",
+  "HIS": "0cc0d58fab7bd14a6a3ace19cff72057"
+ },
+ "config_hash": "e27dcb32dabd5780"
+}

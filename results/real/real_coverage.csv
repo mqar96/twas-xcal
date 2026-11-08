@@ -1,0 +1,5 @@
+set,distinct_models,median_snps,median_window,evaluable_AFR,evaluable_AMR,evaluable_EAS,evaluable_EUR,evaluable_SAS
+AFA,3308.0,6.0,1971.0,3307.0,3308.0,3234.0,3291.0,3282.0
+CAU,4811.0,8.0,2089.0,4800.0,4809.0,4776.0,4811.0,4809.0
+HIS,4359.0,7.0,2066.0,4356.0,4358.0,4303.0,4351.0,4346.0
+all,12478.0,7.0,2047.0,12463.0,12475.0,12313.0,12453.0,12437.0

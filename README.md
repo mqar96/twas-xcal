@@ -28,16 +28,30 @@ Results below come from 3,540 trained gene models per ancestry, 500 simulated 1-
    With a 500-person LD panel, plain XCAL with a normal reference is **not** calibrated in the tail (up to 1.9×). Use XCAL-t.
 3. **Sparse architectures break every variance-based correction**, including the oracle that knows the true null variance. With π = 0.01 (about 4 causal SNPs per Mb), even the oracle is 26–60× inflated at α = 10⁻⁴. These false positives are genes near causal variants (the "null" of a TWAS is not "no nearby signal"). At α = 10⁻⁴, **XCAL-t stays at 0.85–0.97× the oracle** in every ancestry and architecture. European-Φ variance control ranges from 0.38× to 9.2× the oracle.
 
-So XCAL-t delivers the best calibration any variance-based method can achieve, in any GWAS ancestry. When the trait has strong local signals, extreme-tail TWAS hits still need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
+So in the three simulated ancestries, XCAL-t is calibrated under polygenic backgrounds and stays close to the exact-variance oracle under sparse ones. When the trait has strong local signals, extreme-tail TWAS hits still need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
 
-Not validated: case-control traits, eQTL/GWAS sample overlap, and admixed GWAS (local-ancestry LD is needed). Real-genotype results (1000 Genomes × MESA) are **model-based predictions**, because no real phenotypes are used. See [`realdata/README.md`](realdata/README.md).
+**Real genotypes (1000 Genomes × 12,478 MESA models; model-based predictions, no real phenotypes).**
+- Median Φ ratio relative to European LD:
+  - African 0.61 (5–95%: 0.30–1.27)
+  - South Asian 0.90
+  - East Asian 0.94
+  - Admixed American 1.22
+- At N·h² = 250k and α = 2.5 × 10⁻⁶, European-Φ variance control with EUR LD is predicted at:
+  - 11.8× (African), 5.3× (South Asian), 19.6× (East Asian) and 402× (admixed American);
+  - 4.7× in European data, the half-panel noise floor.
+- XCAL-t is predicted at 0.71–1.02× in the African, South Asian, East Asian and European panels.
+- In the admixed American panel XCAL-t reaches 1.46× at the highest polygenicity, consistent with admixture LD.
+
+See [`realdata/README.md`](realdata/README.md).
+
+Not validated: case-control traits, eQTL/GWAS sample overlap, and admixed GWAS (local-ancestry LD is needed).
 
 ## Method in one line
 ```
 Z_XCAL = v'z / sqrt( a·v'R̂v + c·Q̂ ),   v = w ∘ ŝ   (panel of the GWAS ancestry)
 p = 2·P(t_ν > |Z_XCAL|),               ν = 2/τ̂²    (delete-group jackknife of the denominator)
 ```
-- Q̂ estimates v′Σ²v with a moment correction for panel size and a Cauchy–Schwarz positivity floor. Measured bias is within ±5% (Gaussian settings) and −0.2% to −0.8% (simulated genotype panels).
+- Q̂ estimates v′Σ²v with a moment correction for panel size and a Cauchy–Schwarz positivity floor. Measured bias is within ±5% (Gaussian settings) and −0.2% to −0.7% (simulated genotype panels).
 - c = N·h²/M and the intercept a come from LD-score regression.
 
 Derivation, estimator, jackknife and limits: [`docs/METHODS.md`](docs/METHODS.md).

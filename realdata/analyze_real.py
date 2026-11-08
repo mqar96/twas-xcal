@@ -19,8 +19,12 @@ ALPHAS = [0.05, 1e-3, 1e-4, 2.5e-6]
 POPN = {"AFR": "African", "EUR": "European", "EAS": "East Asian", "SAS": "South Asian", "AMR": "Admixed American"}
 d = d[d.pred_perf_pval < 0.05].reset_index(drop=True)
 
-cov = d[d["pop"] == "EUR"].groupby("set").agg(models=("gene", "size"), median_snps=("n_w", "median"), median_window=("n_win", "median"))
-cov.loc["all"] = [cov.models.sum(), d[d["pop"] == "EUR"].n_w.median(), d[d["pop"] == "EUR"].n_win.median()]
+u = d.drop_duplicates(["set", "gene"])
+cov = u.groupby("set").agg(distinct_models=("gene", "size"), median_snps=("n_w", "median"), median_window=("n_win", "median"))
+cov.loc["all"] = [len(u), u.n_w.median(), u.n_win.median()]
+for p_ in sorted(d["pop"].unique()):
+    cov[f"evaluable_{p_}"] = d[d["pop"] == p_].groupby("set").size().reindex(cov.index)
+    cov.loc["all", f"evaluable_{p_}"] = int((d["pop"] == p_).sum())
 cov.to_csv(f"{a.outdir}/real_coverage.csv")
 d["phi_ratio"] = d.q_full / d.qE
 pr = d.groupby("pop").phi_ratio.describe(percentiles=[.05, .25, .5, .75, .95])
@@ -72,7 +76,7 @@ order = ["AFR", "SAS", "EAS", "EUR", "AMR"]
 fig, ax = plt.subplots(figsize=(7.5, 4.2))
 ax.boxplot([d[d["pop"] == p].phi_ratio.values for p in order], tick_labels=[POPN[p] for p in order], showfliers=False)
 ax.axhline(1, color="#888", lw=1); ax.set_ylabel("Φ(target-ancestry LD) / Φ(European LD)")
-ax.set_title(f"Real genotypes: {int((d['pop'] == 'EUR').sum()):,} MESA models (P < 0.05) x 2,490 1000 Genomes genomes", fontsize=10.5)
+ax.set_title(f"Real genotypes: {len(u):,} MESA models (P < 0.05) x 2,490 1000 Genomes genomes", fontsize=10.5)
 fig.tight_layout(); fig.savefig(f"{a.outdir}/fig_real_phi_ratio.png", dpi=300); plt.close(fig)
 
 PLOT = [("Standard TWAS, EUR LD", "#eb6834", "--"), ("Variance control (EUR Φ), EUR LD", "#1baf7a", "-"),

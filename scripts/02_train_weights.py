@@ -1,10 +1,15 @@
-import sys, os, glob, time, json, numpy as np, warnings
+import os, glob, time, json, numpy as np, warnings
 from joblib import Parallel, delayed
 from sklearn.linear_model import ElasticNetCV
 from sklearn.exceptions import ConvergenceWarning
 
-gdir, out = sys.argv[1], sys.argv[2]
-genes_per_region = int(sys.argv[3]) if len(sys.argv) > 3 else 12
+import argparse
+ap = argparse.ArgumentParser(description="Train elastic-net expression models (CEU/YRI, n = 100-1000) for every simulated region")
+ap.add_argument("genodir"); ap.add_argument("outdir")
+ap.add_argument("--genes-per-region", type=int, default=8)
+ap.add_argument("--jobs", type=int, default=2)
+a = ap.parse_args()
+gdir, out, genes_per_region = a.genodir, a.outdir, a.genes_per_region
 os.makedirs(out, exist_ok=True)
 POPS = ("YRI", "CEU", "CHB")
 
@@ -16,6 +21,9 @@ def train_region(f):
     if os.path.exists(of):
         return 0
     d = np.load(f)
+    if int(d["n_snps"]) < 20:
+        np.savez_compressed(of, recs=json.dumps([]))
+        return 0
     rng = np.random.default_rng(50_000 + rid)
     recs = []
     for g in range(genes_per_region):
@@ -50,7 +58,7 @@ def train_region(f):
         r2_cv = float(max(0.0, 1 - m.mse_path_.mean(axis=-1).min() / y.var()))
         acc = {}
         for P in POPS:
-            Xg = d[f"{P}_gwas"].astype(float)
+            Xg = d[f"{P}_gwas_eval"].astype(float)
             gtrue = (Xg - Xg.mean(0)) @ beta / sd_scale * np.sqrt(h2)
             yP = gtrue + rng.normal(0, np.sqrt(1 - h2), len(gtrue))
             pred = (Xg - Xg.mean(0)) @ w
@@ -63,5 +71,5 @@ def train_region(f):
 
 files = sorted(glob.glob(f"{gdir}/region_*.npz"))
 t = time.time()
-r = Parallel(n_jobs=2)(delayed(train_region)(f) for f in files)
+r = Parallel(n_jobs=a.jobs)(delayed(train_region)(f) for f in files)
 print("trained", sum(r), "genes in", time.time() - t, "s")

@@ -1,7 +1,7 @@
 {
   "title": "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies",
   "upload_type": "software",
-  "description": "<p><b>twas-xcal</b> provides XCAL and XCAL-t, ancestry-aware null calibration for TWAS tests (PrediXcan, S-PrediXcan, FUSION-type statistics) under polygenic architectures. The polygenic inflation slope of TWAS statistics is ancestry-specific: European-derived variance-control corrections are miscalibrated when transferred to East Asian, African, South Asian or admixed American GWAS. XCAL uses an ancestry-matched LD panel and a finite-sample-unbiased quadratic estimator; XCAL-t adds a delete-block jackknife Satterthwaite t-reference that absorbs LD-panel noise. The release includes a reproducible multi-ancestry TWAS null simulator (msprime/stdpopsim), validation on 3,538 simulated gene models, and real-data validation on 12,453 MESA expression models across 2,490 1000 Genomes genomes from five ancestries.</p>",
+  "description": "<p><b>twas-xcal</b> provides XCAL-t, an ancestry-aware null calibration for summary-statistic TWAS tests (S-PrediXcan type) under polygenic backgrounds. The polygenic inflation slope of TWAS statistics is a weight-specific LD score of the GWAS population, so European-derived variance-control corrections are miscalibrated in other ancestries. XCAL-t uses an ancestry-matched LD panel, a moment-corrected estimator of the polygenic variance term with a Cauchy-Schwarz positivity floor, LD-score-regression estimates of the polygenic scale and intercept, and a delete-group jackknife Satterthwaite t reference for LD-panel noise.</p><p>The release includes a benchmark that counts false positives against an exactly known simulated null (3,540 gene models per ancestry, ~10^8 tests per setting, infinitesimal and sparse architectures), an individual-level GWAS check, an end-to-end benchmark with estimated polygenicity, and a real-genotype benchmark (1000 Genomes phase 3 x 12,453 MESA expression models; model-based). Version 0.2.0 corrects errors in v0.1.0 identified by an independent audit (see CHANGELOG).</p>",
   "creators": [
     {
       "name": "Rao, Muhammad Qudduse Ahmad",
@@ -30,5 +30,6 @@
       "relation": "isSupplementTo",
       "scheme": "url"
     }
-  ]
+  ],
+  "version": "0.2.0"
 }

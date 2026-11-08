@@ -1,44 +1,25 @@
-import sys, os, json, time, warnings, numpy as np, pandas as pd
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from xcal.calibration import panel_stats, quad_R2_unbiased, poly_q
-from scipy.stats import norm
+import argparse, time, warnings
+import numpy as np
+import pandas as pd
+from scipy.stats import norm, t as tdist
 from sklearn.linear_model import ElasticNetCV
-from sklearn.exceptions import ConvergenceWarning
-import stdpopsim
+from xcal.genotypes import simulate_region, POPS
+from xcal.calibration import Panel
+from xcal.core import satterthwaite_df
 warnings.filterwarnings("ignore")
 
-out = sys.argv[1]; n_regions = int(sys.argv[2]); N = int(sys.argv[3]); REPS = int(sys.argv[4])
-POPS = ("YRI", "CEU", "CHB")
-SPL = {"train": 1000, "ldref": 500, "gwas": N}
+ap = argparse.ArgumentParser(description="Individual-level GWAS check of the summary-statistic null model, XCAL and XCAL-t")
+ap.add_argument("out")
+ap.add_argument("--regions", type=int, default=40)
+ap.add_argument("--n-gwas", type=int, default=10000)
+ap.add_argument("--reps", type=int, default=1000)
+a = ap.parse_args()
+N = a.n_gwas
 CS = [0.0, 0.1, 0.4]
+ALPHAS = [0.05, 0.01]
 
 
-def sim(seed):
-    sp = stdpopsim.get_species("HomSap"); m = sp.get_demographic_model("OutOfAfrica_3G09")
-    ts = stdpopsim.get_engine("msprime").simulate(m, sp.get_contig(length=1e6), {p: sum(SPL.values()) for p in POPS}, seed=seed)
-    pop = np.array([ts.node(n).population for n in ts.samples()])
-    names = [ts.population(i).metadata.get("name", str(i)) for i in range(ts.num_populations)]
-    idx = {p: np.where(pop == names.index(p))[0] for p in POPS}
-    keep = []
-    for v in ts.variants():
-        g = v.genotypes
-        if g.max() > 1: continue
-        f = np.array([g[idx[p]].mean() for p in POPS]); maf = np.minimum(f, 1 - f)
-        if maf.max() >= 0.05 and maf.min() >= 0.01:
-            keep.append(g.astype(np.int8))
-    rng = np.random.default_rng(seed)
-    sel = np.sort(rng.choice(len(keep), min(400, len(keep)), replace=False))
-    H = np.vstack([keep[i] for i in sel])
-    res = {}
-    for p in POPS:
-        h = H[:, idx[p]]; dip = (h[:, 0::2] + h[:, 1::2]).T
-        o = 0
-        for k, n in SPL.items():
-            res[f"{p}_{k}"] = dip[o:o + n]; o += n
-    return res
-
-
-def train(X, rng, h2=0.1, k=2, n=500):
+def train(X, rng, h2=0.15, k=2, n=500):
     Xt = X[:n].astype(float); frq = Xt.mean(0) / 2
     cand = np.where(np.minimum(frq, 1 - frq) >= 0.05)[0]
     b = np.zeros(X.shape[1]); b[rng.choice(cand, k, replace=False)] = rng.normal(0, 1, k)
@@ -50,44 +31,55 @@ def train(X, rng, h2=0.1, k=2, n=500):
     w = np.zeros(X.shape[1]); w[ok] = m.coef_[ok] / sd[ok]
     return w
 
+
 rows = []
-t = time.time()
-for r in range(n_regions):
-    d = sim(90_000 + r)
+t0 = time.time()
+for r in range(a.regions):
+    d = simulate_region(90_000 + r, splits={"train": 1000, "ldref": 500, "gwas": N})
+    if int(d["n_snps"]) < 20:
+        continue
     rng = np.random.default_rng(r)
-    P = {f"{p}_ldref": panel_stats(d[f"{p}_ldref"]) for p in POPS}
+    P = {p: Panel(d[f"{p}_ldref"]) for p in POPS}
     genes = []
     for tp in ("CEU", "YRI", "CEU", "YRI"):
-        w = train(d[f"{tp}_train"], rng, h2=0.15)
-        if np.any(w): genes.append((tp, w))
+        w = train(d[f"{tp}_train"], rng)
+        if np.any(w):
+            genes.append((tp, w))
     for g in POPS:
-        X = d[f"{g}_gwas"].astype(np.float32)
-        s = X.std(0); ok = s > 0
-        Xs = np.zeros_like(X); Xs[:, ok] = (X[:, ok] - X[:, ok].mean(0)) / s[ok]
-        Pg = panel_stats(d[f"{g}_gwas"])
+        Pg = Panel(d[f"{g}_gwas"])
+        Xs = Pg.Z.astype(np.float32)
+        pre = []
+        for gi, (tp, w) in enumerate(genes):
+            mT = P[g].moments(w); mE = P["CEU"].moments(w)
+            Lb, Qb = P[g].jackknife(w, K=20, seed=r)
+            pre.append((gi, tp, w, P[g].v(w), P["CEU"].v(w), mT, mE, Lb, Qb))
         for c in CS:
-            B = rng.normal(0, np.sqrt(c / N), (X.shape[1], REPS)).astype(np.float32) if c > 0 else np.zeros((X.shape[1], REPS), np.float32)
-            G = Xs @ B
-            E = rng.normal(0, 1, (N, REPS)).astype(np.float32)
-            Y = G + E * np.sqrt(np.clip(1 - G.var(0), 0.05, 1))
+            B = rng.normal(0, np.sqrt(c / N), (Xs.shape[1], a.reps)).astype(np.float32)
+            Gv = Xs @ B
+            Y = Gv + rng.normal(0, 1, (N, a.reps)).astype(np.float32) * np.sqrt(np.clip(1 - Gv.var(0), 0.05, 1))
             Y = (Y - Y.mean(0)) / Y.std(0)
             Zg = (Xs.T @ Y) / np.sqrt(N)
-            for gi, (tp, w) in enumerate(genes):
-                for refname in (f"{g}_ldref", "CEU_ldref"):
-                    Pr = P[refname]
-                    v = w * Pr["s"]
-                    Zt = (v @ Zg) / np.sqrt(v @ Pr["R"] @ v)
-                    qE = poly_q(w, P["CEU_ldref"]); qT = poly_q(w, P[f"{g}_ldref"])
-                    vt = w * P[f"{g}_ldref"]["s"]
-                    Zx = (vt @ Zg) / np.sqrt(vt @ P[f"{g}_ldref"]["R"] @ vt + c * quad_R2_unbiased(P[f"{g}_ldref"], vt))
-                    Rv = Pg["R"] @ v
-                    V_pred = (v @ Rv + c * N / N * (Rv @ Rv)) / (v @ Pr["R"] @ v)
-                    rows.append(dict(region=r, gene=gi, train_pop=tp, gwas_pop=g, c=c, ref=refname.split("_")[0],
-                                     emp_var_unadj=float(np.var(Zt)), pred_var_unadj=float(V_pred),
-                                     t1_unadj=float(np.mean(np.abs(Zt) > 1.959964)),
-                                     t1_VCeur=float(np.mean(np.abs(Zt / np.sqrt(1 + c * qE)) > 1.959964)),
-                                     t1_VCtarget=float(np.mean(np.abs(Zt / np.sqrt(1 + c * qT)) > 1.959964)),
-                                     t1_XCAL=float(np.mean(np.abs(Zx) > 1.959964)),
-                                     emp_var_XCAL=float(np.var(Zx)), reps=REPS))
-    print(f"region {r} done {time.time()-t:.0f}s", flush=True)
-pd.DataFrame(rows).to_csv(out, index=False)
+            for gi, tp, w, vT, vE, mT, mE, Lb, Qb in pre:
+                LT, QT, LE = mT["L"], mT["Q"], mE["L"]
+                qE = mE["Q"] / LE
+                df = float(satterthwaite_df(Lb + c * Qb, LT + c * QT))
+                numT = vT @ Zg; numE = vE @ Zg
+                RvT = Pg.R @ vT; RvE = Pg.R @ vE
+                predT = float(vT @ RvT + c * RvT @ RvT); predE = float(vE @ RvE + c * RvE @ RvE)
+                stats = {"STD_M": (numT / np.sqrt(LT), predT / LT), "STD_E": (numE / np.sqrt(LE), predE / LE),
+                         "VC_E_E": (numE / np.sqrt(LE * (1 + c * qE)), predE / (LE * (1 + c * qE))),
+                         "XCAL": (numT / np.sqrt(LT + c * QT), predT / (LT + c * QT))}
+                row = dict(region=r, gene=gi, train_pop=tp, gwas_pop=g, c=c, reps=a.reps, df=df)
+                for k, (s, V) in stats.items():
+                    row[f"emp_var_{k}"] = float(np.var(s)); row[f"pred_var_{k}"] = V
+                    for al in ALPHAS:
+                        row[f"rej_{k}_{al:g}"] = int(np.sum(np.abs(s) > norm.isf(al / 2)))
+                        row[f"pred_rej_{k}_{al:g}"] = float(2 * norm.sf(norm.isf(al / 2) / np.sqrt(V)))
+                s, V = stats["XCAL"]
+                for al in ALPHAS:
+                    thr = tdist.isf(al / 2, df)
+                    row[f"rej_XCALT_{al:g}"] = int(np.sum(np.abs(s) > thr))
+                    row[f"pred_rej_XCALT_{al:g}"] = float(2 * norm.sf(thr / np.sqrt(V)))
+                rows.append(row)
+    print(f"region {r} done {time.time() - t0:.0f}s", flush=True)
+pd.DataFrame(rows).to_csv(a.out, index=False)

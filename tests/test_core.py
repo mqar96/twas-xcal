@@ -1,60 +1,166 @@
-import numpy as np, pandas as pd, sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from xcal.core import ld_from_genotypes, unbiased_quad_R2, xcal_gene, run_xcal, estimate_c
+import numpy as np
+import pandas as pd
+import pytest
+
+from xcal import (standardize, panel_moments, jackknife_moments, xcal_gene, run_xcal, estimate_c,
+                  ld_scores, genomic_control, harmonize)
 
 
-def _ar1_genotypes(n, p, rho, rng):
-    L = np.zeros((n, p)); L[:, 0] = rng.normal(size=n)
-    for j in range(1, p):
-        L[:, j] = rho * L[:, j - 1] + np.sqrt(1 - rho ** 2) * rng.normal(size=n)
-    return (L > 0).astype(float) + (rng.normal(size=(n, p)) * 0.3 + L > 0.8)
+def gaussian_panel(Sig, n, rng, mu=None, sd=None):
+    p = Sig.shape[0]
+    L = np.linalg.cholesky(Sig + 1e-12 * np.eye(p))
+    X = rng.normal(size=(n, p)) @ L.T
+    if sd is not None:
+        X = X * sd
+    if mu is not None:
+        X = X + mu
+    return X
 
 
-def test_unbiased_quad_closer_to_truth():
+def ar1(p, rho):
+    i = np.arange(p)
+    return rho ** np.abs(np.subtract.outer(i, i))
+
+
+def test_audit_counterexample_q_below_one():
     rng = np.random.default_rng(0)
-    p = 200
-    Sigma = 0.8 ** np.abs(np.subtract.outer(np.arange(p), np.arange(p)))
-    v = np.zeros(p); v[[50, 51, 120]] = [1.0, -0.5, 0.7]
-    truth = v @ Sigma @ Sigma @ v
-    raw, unb = [], []
-    for _ in range(50):
-        X = rng.multivariate_normal(np.zeros(p), Sigma, size=400)
-        R = np.corrcoef(X, rowvar=False)
-        raw.append((R @ v) @ (R @ v)); unb.append(unbiased_quad_R2(R, 400, v))
-    assert abs(np.mean(unb) - truth) < abs(np.mean(raw) - truth)
-    assert abs(np.mean(unb) / truth - 1) < 0.05
+    Sig = np.array([[1.0, 0.8], [0.8, 1.0]])
+    X = gaussian_panel(Sig, 200_000, rng)
+    Z, s, ok = standardize(X)
+    v = np.array([1.0, -1.0]) * s
+    m = panel_moments(Z, v, ok)
+    assert abs(m["L"] / (v @ v) * 2 - 0.4) < 0.01
+    assert abs(m["Q"] / m["L"] - 0.2) < 0.01
+    assert not m["floor_active"]
 
 
-def test_xcal_calibrated_under_polygenic_null():
+@pytest.mark.parametrize("rho,w_kind", [(0.5, "opp"), (0.9, "pos"), (0.5, "dense")])
+def test_quadratic_estimator_nearly_unbiased(rho, w_kind):
     rng = np.random.default_rng(1)
-    p, c = 150, 0.4
-    Sigma = 0.9 ** np.abs(np.subtract.outer(np.arange(p), np.arange(p)))
-    Xp = rng.multivariate_normal(np.zeros(p), Sigma, size=500)
-    R, s, n = ld_from_genotypes(Xp)
-    w = np.zeros(p); w[[40, 42, 90]] = [0.6, 0.3, -0.4]
-    Lc = np.linalg.cholesky(Sigma + c * Sigma @ Sigma + 1e-9 * np.eye(p))
-    zs = []
-    for _ in range(4000):
-        z = Lc @ rng.normal(size=p)
-        zs.append(xcal_gene(w, z, R, s, n, c)[0])
-    assert 0.85 < np.var(zs) < 1.15
+    p, n = 120, 300
+    Sig = ar1(p, rho)
+    w = {"opp": np.r_[np.zeros(40), 1, -1, np.zeros(p - 42)],
+         "pos": np.r_[np.zeros(40), 1, .5, .7, np.zeros(p - 43)],
+         "dense": rng.normal(size=p) * 0.1}[w_kind]
+    mu = rng.uniform(0, 2, p)
+    sd = rng.uniform(0.3, 0.7, p)
+    est, tru, raw = [], [], []
+    for _ in range(150):
+        Z, s, ok = standardize(gaussian_panel(Sig, n, rng, mu, sd))
+        v = w * s
+        m = panel_moments(Z, v, ok)
+        est.append(m["Q"])
+        raw.append(m["Q_raw"])
+        tru.append(v @ Sig @ Sig @ v)
+    rel = np.mean(est) / np.mean(tru) - 1
+    assert abs(rel) < 0.04
+    assert np.mean(raw) / np.mean(tru) - 1 > abs(rel)
 
 
-def test_estimate_c_recovers_slope():
+def test_floor_is_cauchy_schwarz_bound():
     rng = np.random.default_rng(2)
-    l = rng.uniform(1, 60, 20000)
-    chi2 = (1 + 0.05 * l) * rng.chisquare(1, size=l.size)
-    est = estimate_c(np.sqrt(chi2), l)
-    assert abs(est["c"] - 0.05) < 0.01 and abs(est["intercept"] - 1) < 0.1
+    Z, s, ok = standardize(rng.normal(size=(30, 200)))
+    v = rng.normal(size=200)
+    m = panel_moments(Z, v, ok)
+    assert m["Q"] >= m["L"] ** 2 / (v @ v) - 1e-12
+    assert m["Q"] == max(m["Q_untruncated"], m["L"] ** 2 / (v @ v))
 
 
-def test_run_xcal_end_to_end():
+def test_jackknife_equals_recomputation_from_raw_genotypes():
     rng = np.random.default_rng(3)
-    p = 60
-    G = rng.binomial(2, 0.3, size=(300, p)).astype(float)
-    snps = [f"rs{i}" for i in range(p)]
-    pos = np.arange(p) * 10_000
-    weights = pd.DataFrame(dict(gene="G1", snp=["rs5", "rs6"], weight=[0.2, -0.1]))
-    gwas = pd.DataFrame(dict(snp=snps, z=rng.normal(size=p)))
-    out = run_xcal(weights, gwas, G, snps, pos, c=0.1)
-    assert len(out) == 1 and out.p_xcal.between(0, 1).all() and out.inflation_factor.iloc[0] >= 1
+    G = rng.binomial(2, rng.uniform(0.05, 0.5, 60), size=(200, 60)).astype(float)
+    G[:, 5] = 1.0
+    w = rng.normal(size=60) * (rng.random(60) < 0.2)
+    Z, s, ok = standardize(G)
+    blocks = np.array_split(rng.permutation(200), 20)
+    L, Q = jackknife_moments(Z, s, np.where(ok, w, 0.0), blocks=blocks)
+    for k, b in enumerate(blocks):
+        keep = np.setdiff1d(np.arange(200), b)
+        Zk, sk, okk = standardize(G[keep])
+        m = panel_moments(Zk, np.where(okk, w * sk, 0.0), okk)
+        assert np.isclose(m["L"], L[k], rtol=1e-10)
+        assert np.isclose(m["Q"], Q[k], rtol=1e-10)
+
+
+def test_xcal_gene_outputs_and_t_is_more_conservative():
+    rng = np.random.default_rng(4)
+    G = gaussian_panel(ar1(80, 0.8), 400, rng)
+    w = np.zeros(80); w[[10, 30]] = [0.5, -0.3]
+    z = rng.normal(size=80) * 3
+    r = xcal_gene(w, z, G, c=0.3)
+    assert r["df"] >= 4 and r["p_xcal_t"] >= r["p_xcal_normal"]
+    assert r["inflation_factor"] > 1
+
+
+def test_xcal_t_calibrated_in_small_simulation():
+    rng = np.random.default_rng(5)
+    p, c = 60, 0.5
+    Sig = ar1(p, 0.85)
+    Lg = np.linalg.cholesky(Sig + c * Sig @ Sig)
+    rej, n = 0, 0
+    for g in range(40):
+        G = gaussian_panel(Sig, 500, rng)
+        w = np.zeros(p); idx = rng.choice(p, 3, replace=False); w[idx] = rng.normal(size=3)
+        Z, s, ok = standardize(G)
+        v = w * s
+        m = panel_moments(Z, v, ok)
+        Lb, Qb = jackknife_moments(Z, s, w)
+        from xcal.core import xcal_from_moments
+        zs = (rng.normal(size=(2000, p)) @ Lg.T) @ v
+        r = xcal_from_moments(zs, m["L"], m["Q"], c, 1.0, Lb, Qb)
+        rej += np.sum(r["p_xcal_t"] < 0.01); n += len(zs)
+    assert rej / n < 0.0125
+
+
+def _toy_inputs(rng):
+    snps = np.array([f"rs{i}" for i in range(50)])
+    pos = np.arange(50) * 10_000
+    G = rng.binomial(2, 0.3, size=(300, 50)).astype(float)
+    weights = pd.DataFrame({"gene": ["A"] * 3 + ["B"] * 2, "snp": ["rs3", "rs4", "rs99", "rs20", "rs21"],
+                            "weight": [0.2, -0.1, 0.4, 0.3, 0.1]})
+    gwas = pd.DataFrame({"snp": snps, "z": rng.normal(size=50)})
+    return weights, gwas, G, snps, pos
+
+
+def test_run_xcal_reports_coverage_and_rejects_duplicates():
+    rng = np.random.default_rng(6)
+    weights, gwas, G, snps, pos = _toy_inputs(rng)
+    res = run_xcal(weights, gwas, G, snps, pos, c=0.1, window_bp=100_000)
+    a = res.set_index("gene").loc["A"]
+    assert a.n_snps_used == 2 and a.n_not_in_panel == 1 and a.weight_coverage < 1
+    assert set(res.status) == {"ok"}
+    with pytest.raises(ValueError):
+        run_xcal(pd.concat([weights, weights.iloc[:1]]), gwas, G, snps, pos, c=0.1)
+    with pytest.raises(ValueError):
+        run_xcal(weights, pd.concat([gwas, gwas.iloc[:1]]), G, snps, pos, c=0.1)
+    G2 = G.copy(); G2[0, 0] = np.nan
+    with pytest.raises(ValueError):
+        run_xcal(weights, gwas, G2, snps, pos, c=0.1)
+
+
+def test_estimate_c_recovers_slope_with_ld():
+    rng = np.random.default_rng(7)
+    c_true, blocks, p = 0.05, 300, 40
+    zs, ls = [], []
+    for b in range(blocks):
+        Sig = ar1(p, rng.uniform(0.6, 0.95))
+        Gp = gaussian_panel(Sig, 400, rng)
+        ls.append(ld_scores(Gp, np.arange(p), window_bp=p))
+        C = Sig + c_true * Sig @ Sig
+        zs.append(np.linalg.cholesky(C) @ rng.normal(size=p))
+    r = estimate_c(np.concatenate(zs), np.concatenate(ls))
+    assert abs(r["c"] - c_true) < 3 * r["se_c"] + 0.01
+    assert abs(r["intercept"] - 1) < 3 * r["se_intercept"] + 0.05
+    assert r["se_c"] > 0
+
+
+def test_genomic_control_and_harmonize():
+    rng = np.random.default_rng(8)
+    _, lam = genomic_control(rng.normal(size=200_000))
+    assert abs(lam - 1) < 0.02
+    df = pd.DataFrame({"snp": ["a", "b", "c", "d"], "effect_allele": ["A", "G", "A", "C"],
+                       "other_allele": ["G", "A", "T", "T"], "weight": [1.0, 1.0, 1.0, 1.0]})
+    panel = pd.DataFrame({"snp": ["a", "b", "c"], "a1": ["A", "A", "A"], "a2": ["G", "G", "T"]})
+    out, rep = harmonize(df, panel)
+    assert out.set_index("snp").weight.to_dict() == {"a": 1.0, "b": -1.0}
+    assert rep == {"aligned": 1, "flipped": 1, "ambiguous": 1, "not_in_panel": 1}

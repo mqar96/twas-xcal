@@ -3,26 +3,28 @@ message: "If you use twas-xcal, please cite it as below."
 type: software
 title: "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies"
 abstract: >-
-  XCAL and XCAL-t provide ancestry-aware null calibration for TWAS tests under
-  polygenic architectures, with a reproducible multi-ancestry TWAS null simulator.
-  Validated in simulation and on 12,453 MESA expression models across 2,490
-  1000 Genomes genomes from five ancestries.
+  XCAL-t is an ancestry-aware null calibration for summary-statistic TWAS tests
+  under polygenic backgrounds: an ancestry-matched LD panel, a bias-corrected
+  estimator of the polygenic variance term, and a jackknife Satterthwaite t
+  reference for LD-panel noise. Includes a benchmark that counts false positives
+  against an exactly known simulated null (infinitesimal and sparse architectures)
+  and a real-genotype benchmark (1000 Genomes x MESA).
 authors:
   - family-names: Rao
     given-names: Muhammad Qudduse Ahmad
     affiliation: "Independent Researcher, Lahore, Pakistan"
     orcid: "https://orcid.org/0009-0001-8731-7080"
     email: qudduse1234@gmail.com
-version: 0.1.0
-date-released: 2026-11-07
-doi: 10.5281/zenodo.24028644
+version: 0.2.0
+date-released: 2026-11-08
+doi: 10.5281/zenodo.24028643
 identifiers:
   - type: doi
     value: 10.5281/zenodo.24028643
     description: Concept DOI (all versions)
   - type: doi
     value: 10.5281/zenodo.24028644
-    description: Version 0.1.0
+    description: Version 0.1.0 (superseded; see CHANGELOG)
 license: MIT
 repository-code: "https://github.com/mqar96/twas-xcal"
 url: "https://github.com/mqar96/twas-xcal"

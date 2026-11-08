@@ -28,28 +28,40 @@ def train(X, rng, h2, k):
 
 
 rows = []; t = time.time()
+import os as _os
+_PART = a.out + ".parts"
+_os.makedirs(_PART, exist_ok=True)
 for r in range(a.regions):
+    _pf = f"{_PART}/r{r:03d}.csv"
+    if _os.path.exists(_pf):
+        if _os.path.getsize(_pf) > 1:
+            rows.extend(pd.read_csv(_pf).to_dict("records"))
+        continue
+    _start = len(rows)
     d = simulate_region(70_000 + r, splits={"train": 500, "ldref": 5000, "gwas": 20000})
     if int(d["n_snps"]) < 20:
+        open(_pf, "w").write("")
         continue
     rng = np.random.default_rng(r)
     genes = [(tp, train(d[f"{tp}_train"], rng, float(rng.choice([0.05, 0.1, 0.2])), int(rng.choice([1, 2, 3])))) for tp in ("CEU", "YRI", "CEU", "YRI")]
     genes = [(tp, w) for tp, w in genes if np.any(w)]
     for g in POPS:
-        Rg = Panel(d[f"{g}_gwas"]).R
+        PG = Panel(d[f"{g}_gwas"]); Rg = PG.R
         for m in SIZES:
             Pt = Panel(d[f"{g}_ldref"][:m]); Pe = Panel(d["CEU_ldref"][:m])
             for gi, (tp, w) in enumerate(genes):
-                mt = Pt.moments(w); me = Pe.moments(w)
+                vt = w * PG.s; ve = Pe.v(w)
+                mt = Pt.moments(vt); me = Pe.moments(ve)
                 if mt["L"] <= 1e-12 or me["L"] <= 1e-12:
                     continue
-                Lb, Qb = Pt.jackknife(w, K=20, seed=r)
-                vt = Pt.v(w); ve = Pe.v(w)
+                Lb, Qb = Pt.jackknife(vt, K=20, seed=r)
                 for c in CS:
                     D = mt["L"] + c * mt["Q"]
                     rows.append(dict(region=r, gene=gi, train_pop=tp, gwas_pop=g, panel_n=m, c=c,
                                      V_XCAL=true_var(vt, Rg, c) / D, df_XCAL=float(satterthwaite_df(Lb + c * Qb, D)),
                                      V_VCeur=true_var(ve, Rg, c) / (me["L"] * (1 + c * me["Q"] / me["L"])),
                                      floor_active=mt["floor_active"]))
+    pd.DataFrame(rows[_start:]).to_csv(_pf + ".tmp", index=False)
+    _os.replace(_pf + ".tmp", _pf)
     print(f"region {r} {time.time() - t:.0f}s", flush=True)
 pd.DataFrame(rows).to_csv(a.out, index=False)

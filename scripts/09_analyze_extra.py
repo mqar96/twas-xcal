@@ -82,7 +82,7 @@ if a.estc:
     out.append(("estimated c: c-hat", C.round(4)))
     out.append(("estimated c: XCAL-t counted ratios", T.round(3)))
 
-with open(f"{a.outdir}/summary_extra.txt", "w") as fh:
+with open(f"{a.outdir}/summary_extra.txt", "w", encoding="utf-8") as fh:
     for name, T in out:
         fh.write(f"== {name}\n{T.to_string()}\n\n")
-print(open(f"{a.outdir}/summary_extra.txt").read()[:8000])
+print(open(f"{a.outdir}/summary_extra.txt", encoding="utf-8").read()[:8000])

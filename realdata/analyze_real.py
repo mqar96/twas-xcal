@@ -30,7 +30,7 @@ d["phi_ratio"] = d.q_full / d.qE
 pr = d.groupby("pop").phi_ratio.describe(percentiles=[.05, .25, .5, .75, .95])
 pr.to_csv(f"{a.outdir}/real_phi_ratio.csv")
 d.groupby(["set", "pop"]).phi_ratio.describe(percentiles=[.05, .5, .95]).to_csv(f"{a.outdir}/real_phi_ratio_by_set.csv")
-fl = d.groupby("pop")[["floorA", "floorF"]].mean()
+fl = d.groupby("pop")[["floorA_G", "floorA", "floorF"]].mean()
 fl.to_csv(f"{a.outdir}/real_floor_activation.csv")
 
 jl = np.array([np.array(x.split(";"), float) for x in d.jk_lin])
@@ -47,11 +47,12 @@ for nh2 in NH2:
     c = nh2 / M
     numA = d.linB_vA + c * d.unbB_vA
     numE = d.linB_vE + c * d.unbB_vE
+    numG = d.linB_vG + c * d.unbB_vG
     V = {"Standard TWAS, matched LD": numA / d.linA, "Standard TWAS, EUR LD": numE / d.linE,
-         "Variance control (EUR Φ), EUR LD": numE / d.linE / (1 + c * d.qE),
-         "Variance control (EUR Φ), matched LD": numA / d.linA / (1 + c * d.qE),
-         "XCAL (normal reference)": numA / (d.linA + c * d.unbA)}
-    df_ = satterthwaite_df(jl + c * ju, (d.linA + c * d.unbA).values)
+         "Adapted variance control (EUR q), EUR LD": numE / d.linE / (1 + c * d.qE),
+         "Adapted variance control (EUR q), matched LD": numA / d.linA / (1 + c * d.qE),
+         "XCAL (normal reference)": numG / (d.linA_G + c * d.unbA_G)}
+    df_ = satterthwaite_df(jl + c * ju, (d.linA_G + c * d.unbA_G).values)
     for grp_cols in (["set", "pop"], ["pop"]):
         for key, idx in d.groupby(grp_cols).groups.items():
             key = key if isinstance(key, tuple) else (key,)
@@ -61,7 +62,7 @@ for nh2 in NH2:
                 for al in ALPHAS:
                     r[f"ratio_{al:g}"] = float(t1(v[idx], al).mean() / al)
                 rows.append(r)
-            r = dict(base, method="XCAL-t (t reference)", mean_V=float(V["XCAL (normal reference)"][idx].mean()), median_df=float(np.median(df_[idx])))
+            r = dict(base, method="XCAL-t (GWAS SDs; recommended)", mean_V=float(V["XCAL (normal reference)"][idx].mean()), median_df=float(np.median(df_[idx])))
             for al in ALPHAS:
                 r[f"ratio_{al:g}"] = float(t1(V["XCAL (normal reference)"][idx], al, df_[idx]).mean() / al)
             rows.append(r)
@@ -74,13 +75,14 @@ macro.to_csv(f"{a.outdir}/real_null_calibration_macro_over_sets.csv", index=Fals
 
 order = ["AFR", "SAS", "EAS", "EUR", "AMR"]
 fig, ax = plt.subplots(figsize=(7.5, 4.2))
-ax.boxplot([d[d["pop"] == p].phi_ratio.values for p in order], tick_labels=[POPN[p] for p in order], showfliers=False)
-ax.axhline(1, color="#888", lw=1); ax.set_ylabel("Φ(target-ancestry LD) / Φ(European LD)")
+ax.boxplot([d[d["pop"] == p].phi_ratio.values for p in order], tick_labels=[POPN[p] for p in order], whis=(5, 95), showfliers=False)
+ax.axhline(1, color="#888", lw=1); ax.set_ylabel("q(target-ancestry LD) / q(European LD)")
 ax.set_title(f"Real genotypes: {len(u):,} MESA models (P < 0.05) x 2,490 1000 Genomes genomes", fontsize=10.5)
 fig.tight_layout(); fig.savefig(f"{a.outdir}/fig_real_phi_ratio.png", dpi=300); plt.close(fig)
 
-PLOT = [("Standard TWAS, EUR LD", "#eb6834", "--"), ("Variance control (EUR Φ), EUR LD", "#1baf7a", "-"),
-        ("Variance control (EUR Φ), matched LD", "#eda100", ":"), ("XCAL (normal reference)", "#6250d6", "-"), ("XCAL-t (t reference)", "#e34948", "-")]
+PLOT = [("Standard TWAS, EUR LD", "#eb6834", "--"), ("Adapted variance control (EUR q), EUR LD", "#1baf7a", "-"),
+        ("Adapted variance control (EUR q), matched LD", "#eda100", ":"), ("XCAL (normal reference)", "#6250d6", "-"),
+        ("XCAL-t (GWAS SDs; recommended)", "#e34948", "-")]
 fig, axs = plt.subplots(2, 5, figsize=(17, 7.6), sharey="row")
 for row_i, al in enumerate([1e-4, 2.5e-6]):
     for ax, p in zip(axs[row_i], order):
@@ -96,8 +98,8 @@ fig.suptitle("Real 1000 Genomes genotypes x MESA models: model-based predicted n
 fig.tight_layout(rect=(0, 0.06, 1, 0.95)); fig.savefig(f"{a.outdir}/fig_real_null_calibration.png", dpi=300); plt.close(fig)
 
 pd.set_option("display.width", 250)
-with open(f"{a.outdir}/summary_real.txt", "w") as fh:
+with open(f"{a.outdir}/summary_real.txt", "w", encoding="utf-8") as fh:
     fh.write(cov.to_string() + "\n\n" + pr.round(3).to_string() + "\n\n" + fl.round(4).to_string() + "\n\n")
     for al in ALPHAS:
         fh.write(f"alpha={al:g}\n" + pool[pool.Nh2.isin([0, 60000, 250000])].pivot_table(index=["pop", "Nh2"], columns="method", values=f"ratio_{al:g}").round(3).to_string() + "\n\n")
-print(open(f"{a.outdir}/summary_real.txt").read())
+print(open(f"{a.outdir}/summary_real.txt", encoding="utf-8").read())

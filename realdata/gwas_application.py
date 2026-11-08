@@ -1,0 +1,160 @@
+import argparse, gzip, hashlib, json, os, time
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from bed_reader import open_bed
+from scipy.stats import norm, chi2, t as tdist
+from xcal.core import panel_moments, jackknife_moments, satterthwaite_df, ld_scores, estimate_c, sd_from_eaf
+
+ap = argparse.ArgumentParser(description="Apply standard TWAS, adapted EUR variance control and XCAL-t to a real GWAS (BioBank Japan height)")
+ap.add_argument("--sumstats", required=True, help="BBJ BOLT file: Variants CHR POS REF ALT ALT_freq MAF Rsq BETA SE P_INF P_BOLT (hg19)")
+ap.add_argument("--geno", required=True, help="1000 Genomes PLINK prefix template with {} for super-population")
+ap.add_argument("--models", required=True, help="directory with mesa_{AFA,CAU,HIS}_weights.csv.gz and mesa_*_extra.csv")
+ap.add_argument("--target", default="EAS"); ap.add_argument("--n-gwas", type=int, default=159095)
+ap.add_argument("--outdir", required=True); ap.add_argument("--threads", type=int, default=2)
+a = ap.parse_args()
+os.makedirs(a.outdir, exist_ok=True)
+SETS = ["AFA", "CAU", "HIS"]
+WIN = 1_000_000
+t0 = time.time()
+log = open(f"{a.outdir}/application_log.txt", "w", encoding="utf-8")
+
+
+def say(*x):
+    s = " ".join(str(i) for i in x)
+    print(s, flush=True); log.write(s + "\n"); log.flush()
+
+
+bim = pd.read_csv(a.geno.format(a.target) + ".bim", sep="\t", header=None, names=["chr", "rsid", "cm", "pos", "a1", "a2"])
+bim["idx"] = np.arange(len(bim))
+bim["key"] = bim.chr.astype(str) + ":" + bim.pos.astype(str)
+keys = set(bim.key)
+parts = []
+for ch in pd.read_csv(a.sumstats, sep=r"\s+", usecols=["CHR", "POS", "REF", "ALT", "ALT_freq", "Rsq", "BETA", "SE"], chunksize=2_000_000,
+                      dtype={"CHR": str}):
+    ch["key"] = ch.CHR.astype(str) + ":" + ch.POS.astype(str)
+    parts.append(ch[ch.key.isin(keys) & (ch.Rsq >= 0.8)])
+ss = pd.concat(parts, ignore_index=True)
+ss = ss.merge(bim[["key", "rsid", "a1", "a2", "idx"]], on="key")
+same = (ss.ALT == ss.a1) & (ss.REF == ss.a2)
+flip = (ss.ALT == ss.a2) & (ss.REF == ss.a1)
+ss = ss[same | flip].copy()
+ss["z"] = np.where(flip[same | flip], -1, 1) * ss.BETA / ss.SE
+ss["eaf_a1"] = np.where(flip[same | flip], 1 - ss.ALT_freq, ss.ALT_freq)
+ss = ss[(ss.eaf_a1 > 0.01) & (ss.eaf_a1 < 0.99) & np.isfinite(ss.z)]
+ss = ss.drop_duplicates("rsid", keep=False)
+say(f"matched SNPs: {len(ss):,} of {len(bim):,} panel SNPs ({time.time() - t0:.0f}s)")
+
+with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
+    n_target = bed.iid_count
+ldl = np.full(len(bim), np.nan)
+for chrom in range(1, 23):
+    idx = bim.index[bim.chr == chrom].values
+    with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
+        X = bed.read(index=np.s_[:, idx], dtype="float32")
+    X = np.where(X < 0, np.nan, X)
+    X = np.where(np.isnan(X), np.nanmean(X, 0), X)
+    ldl[idx] = ld_scores(X, bim.pos.values[idx], window_bp=WIN)
+    say(f"LD scores chr{chrom} ({time.time() - t0:.0f}s)")
+ss["ld"] = ldl[ss.idx.values]
+fit_free = estimate_c(ss.z.values, ss.ld.values, n_blocks=200)
+fit_fixed = estimate_c(ss.z.values, ss.ld.values, n_blocks=200, fix_intercept=1.0)
+M = int(np.isfinite(ss.ld).sum())
+say("LDSC free intercept:", json.dumps(fit_free), "\nLDSC fixed intercept:", json.dumps(fit_fixed))
+say(f"implied N*h2 = c*M = {fit_free['c'] * M:,.0f} (M = {M:,}); h2_SNP ~ {fit_free['c'] * M / a.n_gwas:.3f}")
+c, aint, se_c, se_a = fit_free["c"], max(fit_free["intercept"], 1.0), fit_free["se_c"], fit_free["se_intercept"]
+
+zmap = pd.Series(ss.z.values, index=ss.idx.values)
+sdmap = pd.Series(sd_from_eaf(ss.eaf_a1.values), index=ss.idx.values)
+W = pd.concat([pd.read_csv(f"{a.models}/mesa_{s}_weights.csv.gz").assign(set=s) for s in SETS])
+E = pd.concat([pd.read_csv(f"{a.models}/mesa_{s}_extra.csv").assign(set=s) for s in SETS])
+keep = E[E["pred.perf.pval"] < 0.05][["set", "gene", "genename"]]
+W = W.merge(keep, on=["set", "gene"]).merge(bim[["rsid", "chr", "pos", "a1", "a2", "idx"]], on="rsid")
+COMP = {"A": "T", "T": "A", "C": "G", "G": "C"}
+s1 = (W.eff_allele == W.a1) & (W.ref_allele == W.a2) | (W.eff_allele.map(COMP) == W.a1) & (W.ref_allele.map(COMP) == W.a2)
+s2 = (W.eff_allele == W.a2) & (W.ref_allele == W.a1) | (W.eff_allele.map(COMP) == W.a2) & (W.ref_allele.map(COMP) == W.a1)
+amb = W.eff_allele.map(COMP) == W.ref_allele
+W = W[(s1 | s2) & ~amb].copy()
+W["w"] = np.where(s1[(s1 | s2) & ~amb], W.weight, -W.weight)
+W = W[W.idx.isin(zmap.index)]
+say(f"models with >=1 usable SNP: {W.groupby(['set', 'gene']).ngroups:,}")
+
+
+def std(X):
+    X = X.astype(np.float64)
+    X = np.where(X < 0, np.nan, X)
+    X = np.where(np.isnan(X), np.nanmean(X, 0), X)
+    sd = X.std(0); ok = sd > 0
+    Z = np.zeros_like(X); Z[:, ok] = (X[:, ok] - X[:, ok].mean(0)) / sd[ok]
+    return Z, sd, ok
+
+
+rows = []
+for chrom in range(1, 23):
+    bc = bim[bim.chr == chrom]
+    Wc = W[W.chr == chrom]
+    if Wc.empty:
+        continue
+    with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
+        ZT, sT, okT = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
+    with open_bed(a.geno.format("EUR") + ".bed", count_A1=True, num_threads=a.threads) as bed:
+        ZE, sE, okE = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
+    pos = bc.pos.values; base = bc.idx.values[0]
+    blocks = np.array_split(np.random.default_rng(chrom).permutation(ZT.shape[0]), 20)
+    for (s, gene), g in Wc.groupby(["set", "gene"]):
+        loc = g.idx.values - base
+        lo = np.searchsorted(pos, pos[loc].min() - WIN); hi = np.searchsorted(pos, pos[loc].max() + WIN, side="right")
+        sl = loc - lo
+        w = np.zeros(hi - lo); w[sl] = g.w.values
+        zw = np.zeros(hi - lo); zw[sl] = zmap[g.idx.values].values
+        gsd = np.zeros(hi - lo); gsd[sl] = sdmap[g.idx.values].values
+        vG, vT, vE = w * gsd, w * sT[lo:hi], w * sE[lo:hi]
+        mG = panel_moments(ZT[:, lo:hi], vG, okT[lo:hi]); mT = panel_moments(ZT[:, lo:hi], vT, okT[lo:hi])
+        mE = panel_moments(ZE[:, lo:hi], vE, okE[lo:hi])
+        if min(mG["L"], mT["L"], mE["L"]) <= 0:
+            continue
+        Lb, Qb = jackknife_moments(ZT[:, lo:hi], vG, blocks=blocks)
+        D = aint * mG["L"] + c * mG["Q"]
+        df = float(satterthwaite_df(aint * Lb + c * Qb, D, extra_var=(mG["Q"] * se_c) ** 2 + (mG["L"] * se_a) ** 2))
+        qE = mE["Q"] / mE["L"]
+        zG, zT, zE = vG @ zw, vT @ zw, vE @ zw
+        r = dict(set=s, gene=gene, genename=g.genename.iloc[0], chr=chrom, n_snps=len(g),
+                 z_standard_target=zT / np.sqrt(mT["L"]), z_standard_eur=zE / np.sqrt(mE["L"]),
+                 z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (1 + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (1 + c * qE)),
+                 z_xcal=zG / np.sqrt(D), df_xcalt=df, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
+        r["p_xcalt"] = 2 * tdist.sf(abs(r["z_xcal"]), df)
+        for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):
+            r[k.replace("z_", "p_")] = 2 * norm.sf(abs(r[k]))
+        rows.append(r)
+    say(f"chr{chrom}: {len(rows):,} models ({time.time() - t0:.0f}s)")
+R = pd.DataFrame(rows)
+R.to_csv(f"{a.outdir}/application_per_model.csv.gz", index=False)
+n = len(R); bonf = 0.05 / n
+methods = {"Standard TWAS, EAS LD": "p_standard_target", "Standard TWAS, EUR LD": "p_standard_eur",
+           "Adapted variance control (EUR q), EUR LD": "p_vc_eur_eurld", "Adapted variance control (EUR q), EAS LD": "p_vc_eur_targetld",
+           "XCAL (normal reference)": "p_xcal", "XCAL-t (GWAS SDs; recommended)": "p_xcalt"}
+S = []
+for lab, col in methods.items():
+    p = R[col].values
+    S.append(dict(method=lab, n_models=n, lambda_median=float(np.median(chi2.isf(p, 1)) / chi2.isf(0.5, 1)),
+                  n_sig_bonferroni=int((p < bonf).sum()), n_sig_genomewide_2p5e6=int((p < 2.5e-6).sum()),
+                  n_distinct_genes_bonf=int(R.loc[p < bonf, "genename"].nunique())))
+S = pd.DataFrame(S)
+S.to_csv(f"{a.outdir}/application_summary.csv", index=False)
+ratio = (R.q_target / R.q_eur).describe(percentiles=[.05, .5, .95])
+ratio.to_csv(f"{a.outdir}/application_q_ratio.csv")
+json.dump(dict(fit_free=fit_free, fit_fixed=fit_fixed, M=M, n_gwas=a.n_gwas, matched_snps=int(len(ss)), n_models=n,
+               sumstats_md5=hashlib.md5(open(a.sumstats, "rb").read()).hexdigest()), open(f"{a.outdir}/application_ldsc.json", "w"), indent=1)
+
+fig, ax = plt.subplots(figsize=(6.2, 5.6))
+exp = -np.log10((np.arange(1, n + 1) - 0.5) / n)
+for lab, col, c_ in [("Standard TWAS, EAS LD", "p_standard_target", "#2a78d6"), ("Adapted variance control (EUR q), EUR LD", "p_vc_eur_eurld", "#1baf7a"),
+                     ("XCAL-t (GWAS SDs; recommended)", "p_xcalt", "#e34948")]:
+    ax.plot(exp, np.sort(-np.log10(np.maximum(R[col].values, 1e-300)))[::-1], ".", ms=2.5, color=c_, label=lab)
+ax.plot([0, exp.max()], [0, exp.max()], color="#555", lw=1); ax.axhline(-np.log10(bonf), color="#999", ls="--", lw=1)
+ax.set_xlabel("Expected −log10 p"); ax.set_ylabel("Observed −log10 p"); ax.legend(frameon=False, fontsize=9)
+ax.set_ylim(0, min(60, ax.get_ylim()[1]))
+fig.tight_layout(); fig.savefig(f"{a.outdir}/fig_application_qq.png", dpi=300); plt.close(fig)
+say(S.to_string()); say(ratio.round(3).to_string())

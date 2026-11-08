@@ -15,10 +15,25 @@ os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
 
 POPS = ["AFR", "EUR", "EAS", "SAS", "AMR"]
 SETS = ["AFA", "CAU", "HIS"]
-CFG = dict(version="0.2.0", window_bp=1_000_000, K=20, chunk=25_000_000, pad=5_000_000, split_seed=2026, pops=POPS, sets=SETS,
-           models_md5={s: hashlib.md5(open(f"{a.models}/mesa_{s}_weights.csv.gz", "rb").read()).hexdigest() for s in SETS})
+import xcal
+
+
+def md5(f):
+    h = hashlib.md5()
+    with open(f, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 24), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+SRC = {n: hashlib.sha256(open(f, "rb").read()).hexdigest() for n, f in
+       [("real_calibration.py", __file__), ("xcal/core.py", os.path.join(os.path.dirname(xcal.__file__), "core.py"))]}
+CFG = dict(version=xcal.__version__, window_bp=1_000_000, K=20, chunk=25_000_000, pad=5_000_000, split_seed=2026, pops=POPS, sets=SETS,
+           models_md5={s: md5(f"{a.models}/mesa_{s}_weights.csv.gz") for s in SETS},
+           extra_md5={s: md5(f"{a.models}/mesa_{s}_extra.csv") for s in SETS},
+           geno_md5={f"{p}.{e}": md5(a.geno.format(p) + "." + e) for p in POPS for e in ("bed", "bim", "fam")}, source_sha256=SRC)
 CFG_HASH = hashlib.sha256(json.dumps(CFG, sort_keys=True).encode()).hexdigest()[:16]
-json.dump(dict(CFG, config_hash=CFG_HASH), open(f"{a.out}.config.json", "w"), indent=1)
+json.dump(dict(CFG, config_hash=CFG_HASH), open(f"{a.out}.config.json", "w", encoding="utf-8"), indent=1)
 chroms = [int(x) for x in a.chroms.split(",")]
 
 bim = pd.read_csv(a.geno.format("EUR") + ".bim", sep="\t", header=None, names=["chr", "rsid", "cm", "pos", "a1", "a2"])
@@ -116,13 +131,17 @@ for ch in chroms:
                         vE[Sl] = wa * P["EUR"]["full"][1][lo:hi][Sl]
                     mB_vE = panel_moments(ZB, vE, okB)
                     mF = moments(P[p]["full"], lo, hi, Sl, wa)[0]
-                    wwin = np.zeros(hi - lo); wwin[Sl] = wa
-                    Lb, Qb = jackknife_moments(ZA, sA, np.where(okA, wwin, 0.0), blocks=blocks[p])
-                    if min(mA["L"], mF["L"], mB_vA["L"], mB_vE["L"]) <= 1e-12:
+                    vG = np.zeros(hi - lo); vG[Sl] = wa * sB[Sl]
+                    mA_G = panel_moments(ZA, vG, okA)
+                    mB_vG = panel_moments(ZB, vG, okB)
+                    Lb, Qb = jackknife_moments(ZA, vG, blocks=blocks[p])
+                    if min(mA["L"], mF["L"], mB_vA["L"], mB_vE["L"], mA_G["L"], mB_vG["L"]) <= 1e-12:
                         continue
                     rows.append(dict(set=s, gene=gene, chr=ch, pop=p, n_w=len(loc), n_win=hi - lo,
                                      linA=mA["L"], unbA=mA["Q"], floorA=mA["floor_active"],
                                      linB_vA=mB_vA["L"], unbB_vA=mB_vA["Q"], linE=mE["L"], unbE=mE["Q"],
+                                     linA_G=mA_G["L"], unbA_G=mA_G["Q"], floorA_G=mA_G["floor_active"],
+                                     linB_vG=mB_vG["L"], unbB_vG=mB_vG["Q"],
                                      linB_vE=mB_vE["L"], unbB_vE=mB_vE["Q"], q_full=mF["Q"] / mF["L"], qE=mE["Q"] / mE["L"],
                                      floorF=mF["floor_active"], jk_lin=";".join(f"{x:.8g}" for x in Lb),
                                      jk_unb=";".join(f"{x:.8g}" for x in Qb), config_hash=CFG_HASH))

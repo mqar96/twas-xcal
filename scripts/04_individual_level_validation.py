@@ -34,9 +34,19 @@ def train(X, rng, h2=0.15, k=2, n=500):
 
 rows = []
 t0 = time.time()
+import os as _os
+_PART = a.out + ".parts"
+_os.makedirs(_PART, exist_ok=True)
 for r in range(a.regions):
+    _pf = f"{_PART}/r{r:03d}.csv"
+    if _os.path.exists(_pf):
+        if _os.path.getsize(_pf) > 1:
+            rows.extend(pd.read_csv(_pf).to_dict("records"))
+        continue
+    _start = len(rows)
     d = simulate_region(90_000 + r, splits={"train": 1000, "ldref": 500, "gwas": N})
     if int(d["n_snps"]) < 20:
+        open(_pf, "w").write("")
         continue
     rng = np.random.default_rng(r)
     P = {p: Panel(d[f"{p}_ldref"]) for p in POPS}
@@ -50,25 +60,26 @@ for r in range(a.regions):
         Xs = Pg.Z.astype(np.float32)
         pre = []
         for gi, (tp, w) in enumerate(genes):
-            mT = P[g].moments(w); mE = P["CEU"].moments(w)
-            Lb, Qb = P[g].jackknife(w, K=20, seed=r)
-            pre.append((gi, tp, w, P[g].v(w), P["CEU"].v(w), mT, mE, Lb, Qb))
+            vT, vE, vG = P[g].v(w), P["CEU"].v(w), w * Pg.s
+            mT, mE, mG = P[g].moments(vT), P["CEU"].moments(vE), P[g].moments(vG)
+            Lb, Qb = P[g].jackknife(vG, K=20, seed=r)
+            pre.append((gi, tp, w, vT, vE, vG, mT, mE, mG, Lb, Qb))
         for c in CS:
             B = rng.normal(0, np.sqrt(c / N), (Xs.shape[1], a.reps)).astype(np.float32)
             Gv = Xs @ B
             Y = Gv + rng.normal(0, 1, (N, a.reps)).astype(np.float32) * np.sqrt(np.clip(1 - Gv.var(0), 0.05, 1))
             Y = (Y - Y.mean(0)) / Y.std(0)
             Zg = (Xs.T @ Y) / np.sqrt(N)
-            for gi, tp, w, vT, vE, mT, mE, Lb, Qb in pre:
-                LT, QT, LE = mT["L"], mT["Q"], mE["L"]
+            for gi, tp, w, vT, vE, vG, mT, mE, mG, Lb, Qb in pre:
+                LT, LE, LG, QG = mT["L"], mE["L"], mG["L"], mG["Q"]
                 qE = mE["Q"] / LE
-                df = float(satterthwaite_df(Lb + c * Qb, LT + c * QT))
-                numT = vT @ Zg; numE = vE @ Zg
-                RvT = Pg.R @ vT; RvE = Pg.R @ vE
-                predT = float(vT @ RvT + c * RvT @ RvT); predE = float(vE @ RvE + c * RvE @ RvE)
+                df = float(satterthwaite_df(Lb + c * Qb, LG + c * QG))
+                numT = vT @ Zg; numE = vE @ Zg; numG = vG @ Zg
+                RvT = Pg.R @ vT; RvE = Pg.R @ vE; RvG = Pg.R @ vG
+                predT = float(vT @ RvT + c * RvT @ RvT); predE = float(vE @ RvE + c * RvE @ RvE); predG = float(vG @ RvG + c * RvG @ RvG)
                 stats = {"STD_M": (numT / np.sqrt(LT), predT / LT), "STD_E": (numE / np.sqrt(LE), predE / LE),
                          "VC_E_E": (numE / np.sqrt(LE * (1 + c * qE)), predE / (LE * (1 + c * qE))),
-                         "XCAL": (numT / np.sqrt(LT + c * QT), predT / (LT + c * QT))}
+                         "XCAL": (numG / np.sqrt(LG + c * QG), predG / (LG + c * QG))}
                 row = dict(region=r, gene=gi, train_pop=tp, gwas_pop=g, c=c, reps=a.reps, df=df)
                 for k, (s, V) in stats.items():
                     row[f"emp_var_{k}"] = float(np.var(s)); row[f"pred_var_{k}"] = V
@@ -81,5 +92,7 @@ for r in range(a.regions):
                     row[f"rej_XCALT_{al:g}"] = int(np.sum(np.abs(s) > thr))
                     row[f"pred_rej_XCALT_{al:g}"] = float(2 * norm.sf(thr / np.sqrt(V)))
                 rows.append(row)
+    pd.DataFrame(rows[_start:]).to_csv(_pf + ".tmp", index=False)
+    _os.replace(_pf + ".tmp", _pf)
     print(f"region {r} done {time.time() - t0:.0f}s", flush=True)
 pd.DataFrame(rows).to_csv(a.out, index=False)

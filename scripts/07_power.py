@@ -22,9 +22,19 @@ def pw(mean, var, thr):
 
 
 rows = []; t0 = time.time()
+import os as _os
+_PART = a.out + ".parts"
+_os.makedirs(_PART, exist_ok=True)
 for r in range(a.regions):
+    _pf = f"{_PART}/r{r:03d}.csv"
+    if _os.path.exists(_pf):
+        if _os.path.getsize(_pf) > 1:
+            rows.extend(pd.read_csv(_pf).to_dict("records"))
+        continue
+    _start = len(rows)
     d = simulate_region(60_000 + r, splits={"train": 1000, "ldref": 1000, "gwas": 20000})
     if int(d["n_snps"]) < 20:
+        open(_pf, "w").write("")
         continue
     rng = np.random.default_rng(r)
     Pg = {g: Panel(d[f"{g}_gwas"]) for g in POPS}
@@ -46,24 +56,28 @@ for r in range(a.regions):
             if gvar <= 0:
                 continue
             mu_unit = P.R @ bs / np.sqrt(gvar)
-            mt = Pt.moments(w); me = Pe.moments(w)
-            if mt["L"] <= 1e-12 or me["L"] <= 1e-12:
+            vG = w * P.s; vt = Pt.v(w); ve = Pe.v(w)
+            mG = Pt.moments(vG); mt = Pt.moments(vt); me = Pe.moments(ve)
+            if min(mG["L"], mt["L"], me["L"]) <= 1e-12:
                 continue
-            Lb, Qb = Pt.jackknife(w, K=20, seed=r)
-            vt = Pt.v(w); qE = me["Q"] / me["L"]
+            Lb, Qb = Pt.jackknife(vG, K=20, seed=r)
+            qE = me["Q"] / me["L"]
             for N, h2t in SCEN:
                 c = N * h2t / SIM_M_EFF
-                num_var = true_var(vt, P.R, c)
-                Dx = mt["L"] + c * mt["Q"]
+                varG = true_var(vG, P.R, c); varT = true_var(vt, P.R, c)
+                Dx = mG["L"] + c * mG["Q"]
                 df = float(satterthwaite_df(Lb + c * Qb, Dx))
                 for q2 in Q2:
-                    mean_num = np.sqrt(N * q2) * float(vt @ mu_unit)
+                    mG_ = np.sqrt(N * q2) * float(vG @ mu_unit); mT_ = np.sqrt(N * q2) * float(vt @ mu_unit)
                     zthr = norm.isf(ALPHA / 2); tthr = tdist.isf(ALPHA / 2, df)
-                    D = {"Oracle": num_var, "XCAL": Dx, "VCeur": mt["L"] * (1 + c * qE), "Standard": mt["L"]}
-                    res = {f"power_{k}": pw(mean_num / np.sqrt(v), num_var / v, zthr) for k, v in D.items()}
-                    res["power_XCALt"] = pw(mean_num / np.sqrt(Dx), num_var / Dx, tthr)
-                    res.update({f"type1_{k}": pw(0.0, num_var / v, zthr) for k, v in D.items()})
-                    res["type1_XCALt"] = pw(0.0, num_var / Dx, tthr)
+                    spec = {"Oracle": (mG_, varG, varG), "XCAL": (mG_, varG, Dx),
+                            "VCeur": (mT_, varT, mt["L"] * (1 + c * qE)), "Standard": (mT_, varT, mt["L"])}
+                    res = {f"power_{k}": pw(mu / np.sqrt(den), var / den, zthr) for k, (mu, var, den) in spec.items()}
+                    res["power_XCALt"] = pw(mG_ / np.sqrt(Dx), varG / Dx, tthr)
+                    res.update({f"type1_{k}": pw(0.0, var / den, zthr) for k, (mu, var, den) in spec.items()})
+                    res["type1_XCALt"] = pw(0.0, varG / Dx, tthr)
                     rows.append(dict(region=r, gene=gi, train_pop=tp, gwas_pop=g, N=N, h2_trait=h2t, c=c, q2=q2, df=df, **res))
+    pd.DataFrame(rows[_start:]).to_csv(_pf + ".tmp", index=False)
+    _os.replace(_pf + ".tmp", _pf)
     print(f"region {r} {time.time() - t0:.0f}s", flush=True)
 pd.DataFrame(rows).to_csv(a.out, index=False)

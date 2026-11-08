@@ -22,7 +22,7 @@ def train_region(f):
         return 0
     d = np.load(f)
     if int(d["n_snps"]) < 20:
-        np.savez_compressed(of, recs=json.dumps([]))
+        np.savez_compressed(of + ".tmp.npz", recs=json.dumps([])); os.replace(of + ".tmp.npz", of)
         return 0
     rng = np.random.default_rng(50_000 + rid)
     recs = []
@@ -66,7 +66,7 @@ def train_region(f):
         recs.append(dict(gene=f"r{rid}_g{g}", region=rid, train_pop=train_pop, n_eqtl=n_eqtl, h2=h2, k=k,
                          n_w=int(len(nz)), r2_cv=r2_cv, idx=nz.tolist(), w=w[nz].tolist(),
                          causal=causal.tolist(), **{f"r2_{P}": acc[P] for P in POPS}))
-    np.savez_compressed(of, recs=json.dumps(recs))
+    np.savez_compressed(of + ".tmp.npz", recs=json.dumps(recs)); os.replace(of + ".tmp.npz", of)
     return len(recs)
 
 files = sorted(glob.glob(f"{gdir}/region_*.npz"))

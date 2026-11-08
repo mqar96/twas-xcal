@@ -33,6 +33,12 @@ rec = dict(step=step, command=cmd, cwd=os.getcwd(), start=datetime.datetime.now(
 r = subprocess.run(cmd)
 rec.update(end=datetime.datetime.now(datetime.timezone.utc).isoformat(), exit_code=r.returncode)
 os.makedirs(os.path.join(workdir, "provenance"), exist_ok=True)
-with open(os.path.join(workdir, "provenance", f"{step}.json"), "w", encoding="utf-8") as fh:
+target = os.path.join(workdir, "provenance", f"{step}.json")
+if os.path.exists(target):
+    k = 1
+    while os.path.exists(target.replace(".json", f".attempt{k}.json")):
+        k += 1
+    os.replace(target, target.replace(".json", f".attempt{k}.json"))
+with open(target, "w", encoding="utf-8") as fh:
     json.dump(rec, fh, indent=1)
 sys.exit(r.returncode)

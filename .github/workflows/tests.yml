@@ -63,8 +63,6 @@ jobs:
   windows:
     name: Windows wheel install + tests
     runs-on: windows-latest
-    env:
-      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,6 +80,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/t" && cp tests/*.py "$RUNNER_TEMP/t/" && cd "$RUNNER_TEMP/t"
           python -c "import xcal; print(xcal.__version__, xcal.__file__)"
           python -m pytest -q .
+      - name: Rebuild null tables and figures from the archived raw file (default Windows encoding, no PYTHONUTF8)
+        shell: bash
+        run: |
+          pip install "matplotlib>=3.9"
+          python scripts/05_analyze_null.py "$RUNNER_TEMP/res" --combined results/raw/null_benchmark_per_gene.csv.gz --boot 20
+          test -s "$RUNNER_TEMP/res/table_null_counts.csv"
 
   min-optional:
     name: minimum optional-dependency versions (real extras)
@@ -99,3 +103,8 @@ jobs:
         run: |
           python -c "import xcal, bed_reader, matplotlib; print(xcal.__version__)"
           python -m pytest -q tests
+      - name: Plotting path with minimum versions
+        run: |
+          python scripts/05_analyze_null.py /tmp/res --combined results/raw/null_benchmark_per_gene.csv.gz --boot 20
+          python realdata/analyze_real.py results/raw/real_genotype_per_model.csv.gz /tmp/real
+          test -s /tmp/res/fig_counted_type1_genomewide.png && test -s /tmp/real/fig_real_null_calibration.png

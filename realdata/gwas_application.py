@@ -49,6 +49,22 @@ say(f"matched SNPs: {len(ss):,} of {len(bim):,} panel SNPs ({time.time() - t0:.0
 
 with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
     n_target = bed.iid_count
+import inspect, shutil
+import xcal.core as _core
+_key = hashlib.sha256(json.dumps(dict(
+    sumstats=hashlib.md5(open(a.sumstats, "rb").read()).hexdigest(),
+    bim=hashlib.md5(open(a.geno.format(a.target) + ".bim", "rb").read()).hexdigest(),
+    bed_size=os.path.getsize(a.geno.format(a.target) + ".bed"), target=a.target, win=WIN, n_matched=int(len(ss)),
+    models=sorted(os.listdir(a.models)), script=hashlib.sha256(open(__file__, "rb").read()).hexdigest(),
+    core=hashlib.sha256(inspect.getsource(_core).encode()).hexdigest()), sort_keys=True).encode()).hexdigest()
+_kf = f"{a.outdir}/cache_key.txt"
+if not os.path.exists(_kf) or open(_kf).read() != _key:
+    for f_ in (f"{a.outdir}/ld_scores_{a.target}.npy", f"{a.outdir}/ldsc_fits.json", f"{a.outdir}/ldsc_loco.json"):
+        if os.path.exists(f_):
+            os.remove(f_)
+    shutil.rmtree(f"{a.outdir}/per_chr", ignore_errors=True)
+    say("cache invalid or absent: recomputing LD scores, LDSC fits and per-chromosome results")
+open(_kf, "w").write(_key)
 ldf = f"{a.outdir}/ld_scores_{a.target}.npy"
 if os.path.exists(ldf):
     ldl = np.load(ldf)
@@ -163,7 +179,7 @@ for chrom in range(1, 23):
             zG, zT, zE = vG @ zw, vT @ zw, vE @ zw
             r = dict(set=s, gene=gene, genename=g.genename.iloc[0], chr=chrom, n_snps=len(g),
                      z_standard_target=zT / np.sqrt(mT["L"]), z_standard_eur=zE / np.sqrt(mE["L"]),
-                     z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (1 + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (1 + c * qE)),
+                     z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (aint + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (aint + c * qE)),
                      z_xcal=zG / np.sqrt(D), df_xcalt=df, c_used=c, a_used=aint, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
             r["p_xcalt"] = 2 * tdist.sf(abs(r["z_xcal"]), df)
             for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):

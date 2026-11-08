@@ -33,7 +33,7 @@ Here R̂ is the sample correlation matrix of an LD panel of the GWAS ancestry, w
 
 **Recommended scaling: GWAS SDs.** Use v = w ∘ s_GWAS, with s_GWAS = sqrt(2 f (1 − f)) from the GWAS allele frequencies (`sd_from_eaf`). Then v does not depend on the panel, and the target D = a v'Σv + c v'Σ²v is a fixed number.
 
-**SNPs the panel cannot describe.** A weight SNP that is missing or monomorphic in the LD panel is removed from v (numerator and denominator alike), and the lost share of squared weight is reported as coverage. Keeping it in the numerator while the panel denominator ignores it underestimates D; with panel SDs this happens implicitly because ŝ = 0, but with GWAS SDs it must be done explicitly (`xcal_gene` does so; unit test `test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds`). In the simulation benchmark no gene model had weight on such a SNP (0 of 3,554 per ancestry); in 1000 Genomes half-panels it occurs.
+**SNPs the panel cannot describe.** A weight SNP that is missing or monomorphic in the LD panel is removed from v (numerator and denominator alike), and the lost share of squared weight is reported as coverage. Keeping it in the numerator while the panel denominator ignores it underestimates D; with panel SDs this happens implicitly because ŝ = 0, but with GWAS SDs it must be done explicitly (`xcal_gene` does so; unit test `test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds`). In the simulation benchmark no gene model had weight on such a SNP; in 1000 Genomes half-panels it occurs.
 
 **Fallback: panel SDs.** If GWAS frequencies are unavailable, v = w ∘ ŝ_panel. The inference below is then conditional on the panel SDs, and the package warns about it.
 
@@ -63,7 +63,7 @@ This is an empirical characterization of approximate unbiasedness, not a theorem
 
 with numerator and denominator independent. Approximating D̂/D by χ²_ν / ν, matching its mean (≈ 1, Section 3) and variance τ² = Var(D̂)/D², gives ν = 2/τ² (Satterthwaite) and Z_XCAL ≈ t_ν.
 
-**Estimating τ².** τ² is estimated with a delete-group jackknife over panel individuals (K = 20 random groups). **v is held fixed** and each replicate recomputes the correlation matrix of the retained individuals (`jackknife_moments`). The jackknife therefore targets exactly Var(D̂) for the fixed D.
+**Estimating τ².** τ² is estimated with a delete-group jackknife over panel individuals (K = 20 random groups). **v is held fixed** and each replicate recomputes the correlation matrix of the retained individuals (`jackknife_moments`). The jackknife therefore targets Var(D̂) for the fixed D (as an approximation; the delete-group jackknife is not exact for this statistic).
 
 **The one-SNP example.** With p = 1, R̂ ≡ 1 and Q̂ = v² (the floor binds), so D̂ = (a + c)v² for every panel. The jackknife variance is then 0, ν reaches its upper clip, and the reference is normal, which is correct. This is a unit test.
 
@@ -76,7 +76,7 @@ v0.2 recomputed v inside the jackknife. That estimated Var(D̂) for a target tha
 
 The rule is therefore an approximation whose type-I behaviour we **validate by counting** (Section 6). We do not claim it is proven conservative.
 
-**What the counting showed (v0.3.0).** With known a and c, XCAL-t was slightly liberal: counted ratios 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6, in line with the analytic prediction for the same panels (1.00–1.08 and 1.01–1.13). The excess persisted with 5,000-person panels (0.94–1.10), so it reflects the small negative bias of Q̂ and the scaled-χ² approximation rather than panel size. With a and c estimated leave-one-chromosome-out and their SEs propagated, conditional ratios were 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6.
+**What the counting showed (v0.3.0).** With known a and c, XCAL-t was slightly liberal: counted ratios 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6, in line with the analytic prediction for the same panels (1.00–1.08 and 1.01–1.13). The excess persisted with 5,000-person panels (model-based: 1.01–1.07 at 5,000; 0.94–1.10 over 500–5,000), so it reflects the small negative bias of Q̂ and the scaled-χ² approximation rather than panel size. With a and c estimated leave-one-chromosome-out and their SEs propagated, conditional ratios were 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6.
 
 **Panel-SD fallback.** With v = w ∘ ŝ_panel, the same computation holds v fixed at the panel SDs. It approximates the variance of D̂ conditional on ŝ. The benchmark reports this variant separately.
 
@@ -93,12 +93,14 @@ The rule is therefore an approximation whose type-I behaviour we **validate by c
 - Degenerate input (fewer than 1,000 SNPs, or no variation in LD scores) raises an error.
 - With LD scores from a few hundred individuals, the slope is attenuated and the intercept absorbs part of the polygenic signal, so a and c should be used **together**.
 
+**Intercept floor.** The benchmark (`08`) and the Biobank Japan application use max(â, 1); a fitted intercept below one is treated as one. This makes the workflow slightly conservative when there is no polygenic signal.
+
 **Recommended workflow.** Leave-one-chromosome-out: test genes on chromosome k with (â, ĉ) fitted on all other chromosomes, so the fitted parameters are independent of the tested z-scores. `scripts/08_estimated_c_benchmark.py` evaluates this workflow, including confounded GWAS with a = 1.1.
 
 ## 6. Benchmarks: what each one establishes
 | Benchmark | Truth | Evidence |
 |---|---|---|
-| Simulation null (`03`) | Covariance of the simulated z-scores, built from 20,000-person LD (exact) | **Counted** rejections, about 10⁸ tests per setting, down to α = 2.5e-6, with 2,000 region-bootstrap resamples. Genomic control is counted exactly in a second deterministic pass using λ from the first pass. |
+| Simulation null (`03`) | Covariance of the simulated z-scores, built from 20,000-person LD (exact) | **Counted** rejections, about 10⁸ tests per setting, down to α = 2.5e-6, with 2,000 region-bootstrap resamples. Genomic control is counted exactly in a second deterministic pass using λ from the first pass (the median χ² is read from a 2,000-point grid of counts). |
 | Individual-level GWAS (`04`) | Realized z-scores (N = 10,000) | Counted at α = 0.05 and 0.01 |
 | Estimated a and c (`08`) | As in `03`; a and c re-estimated leave-one-chromosome-out from each simulated genome | Counted at α ≥ 1e-4 with two-way (genome × region) bootstrap CIs. At smaller α, conditional rates are computed, which is valid because the fitted parameters are independent of the tested statistics (infinitesimal setting only). |
 | Panel size (`06`), power (`07`) | Exact truth from 20,000-person LD | Model-based (analytic) |

@@ -1,7 +1,7 @@
 # Audit responses
 
 ## Re-audit of v0.2.1 (8 November 2026): response in v0.3.0
-The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are addressed below. Results were regenerated from a clean pipeline with per-step provenance (`results/provenance/`).
+The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are addressed below. Results were regenerated from scratch with a provenance record for every step (`results/provenance/`); the records show which steps ran on an uncommitted working tree and the source hashes that ran.
 
 | ID | Finding | Response in v0.3.0 |
 |---|---|---|
@@ -14,19 +14,20 @@ The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are 
 | F7 | Invalid c, intercept and K accepted. | Validation and targeted tests added. |
 | F8 | Harmonized values kept old allele labels. | Labels are updated, originals kept, calls are idempotent; case is normalized and duplicate panel SNPs rejected; tests added. |
 | F9 | Matplotlib floor; Windows cp1252 failure. | `matplotlib>=3.9`; UTF-8 for all text output; `PYTHONUTF8=1` in `run_all.sh`. CI now also runs a Windows wheel job and a minimum optional-dependency job (bed-reader 1.0, matplotlib 3.9, pandas 2.2, numpy 1.24, scipy 1.10). |
-| F10 | One-command scope; raw-file reproduction; resume validation. | `run_all.sh` is documented as simulation-only, with the real-genotype and real-GWAS steps documented separately. `05_analyze_null.py --combined` rebuilds every null table from the archived raw file. Configuration-hash resume checks cover the simulation and real pipelines. |
-| F11 | Reviewer and assistance statements. | The acknowledgment now states that the author audited the work. The AI-use statement describes the assistance; no colleague is credited. |
+| F10 | One-command scope; raw-file reproduction; resume validation. | `run_all.sh` is documented as simulation-only, with the real-genotype and real-GWAS steps documented separately. `05_analyze_null.py --combined` rebuilds every null table from the archived raw file. Configuration-hash resume checks cover `03`, the real-genotype calibration and the Biobank Japan application; scripts 04 and 06–08 resume from checkpoints without a configuration check (documented). |
+| F11 | Reviewer and assistance statements. | The AI-use statement states that the author audited the earlier releases and describes the AI assistance; no colleague is credited. |
 | F12 | Legend whiskers, METHODS numbers and factorization, CADET authors, release notes, metadata, presentation. | Whiskers set to 5th–95th percentiles; METHODS corrected; all reference author lists regenerated from Crossref (APA 7); old release notes marked superseded; repository About text updated; equations, line numbers and figure fonts improved. |
 
 ### What changed in the results
 - **XCAL-t is now close to nominal rather than conservative.** v0.2.1 reported 0.68–0.90 of nominal at α = 2.5e-6. With the corrected jackknife, counted ratios are 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6 (known a and c), matching the analytic prediction. The excess persists with 5,000-person panels, so it is reported as a property of the approximation.
 - **Estimated a and c (LOCO, SEs propagated)**: conditional ratios 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6, including confounded GWAS.
-- **Genomic control (exact counts)**: 1.1–6.1× at α = 10⁻⁴ and up to 26× at α = 2.5e-6.
+- **Genomic control (exact counts)**: 1.1–6.0× at α = 10⁻⁴ and up to 26× at α = 2.5e-6.
 - **Sparse architectures**: XCAL-t 0.97–1.01× the exact-variance oracle at α = 10⁻⁴ (v0.2.1: 0.85–0.97×).
 - **Power**: XCAL-t loses at most 6.5% relative to the oracle (v0.2.1: up to 23%).
 - **Real genotypes** (model-based; noisy half-panel truth puts standard TWAS at 1.28–1.52× at α = 2.5e-6 without signal): XCAL-t 1.10–1.75× at α = 2.5e-6 in the homogeneous panels and up to 3.0× in the admixed American panel (v0.2.1: 0.71–1.02× and 1.46×). The v0.2.1 values benefited from the over-estimated jackknife variance.
 - **Pre-release verification found one more defect**: with GWAS-SD scaling, the real-genotype and Biobank Japan scripts kept weight SNPs that are monomorphic in the panel in the numerator. Fixed (as `xcal_gene` already did), unit-tested, and both analyses rerun. The simulations were unaffected.
 - **Biobank Japan height**: λ 2.75 (standard) → 1.09 (XCAL-t).
+- **A second independent verification** (AI agent, before release) reproduced every null-benchmark and real-genotype table from the raw files and checked every number in the manuscript and README. It found wording and rounding errors, undisclosed choices (intercept floored at one; GC median from a grid), a missing configuration check in the application, and an unequal intercept between methods in the Biobank Japan comparison. All were corrected, and the application was rerun with the same (â, ĉ) for every correction.
 
 ## Independent audit of v0.1.0 (7 November 2026)
 
@@ -46,7 +47,7 @@ Two audit reports reviewed v0.1.0 (commit `0c0bf90`) and the submission package.
 | 9 (P2) | Weak input contracts; no XCAL-t p-value API | `run_xcal` and `xcal_gene` validate duplicates, dimensions and finite values. They report coverage, exclusions and status, and return the statistic, df and `p_xcal_t`. `harmonize` aligns alleles. |
 | 10 (P2) | Real-data reproducibility depended on manual edits; unpinned DivPop; missing SAS .fam checksum | Command-line paths, automatic directory creation, and a configuration hash checked before resuming. DivPop pinned to commit `85100c2` with git-blob checks. A complete 15-file MD5 list from the upstream Zenodo record, verified by `verify_inputs.py`. |
 | 11 (P2) | Thin tests; CI tested an editable install with a path insert | 11 tests (estimator bias, counterexample, floor, jackknife equivalence, XCAL-t calibration, API validation, LDSC recovery, GC, harmonization). CI builds the wheel, installs it outside the checkout and asserts it is imported from site-packages. |
-| 12 (P2) | Headline numbers mixed settings; macro-averaged pooling | Every headline cites its α and N·h² range. Real-data results pool all gene models, with a macro average reported separately. Numbers were cross-checked by an independent agent against the tables. |
+| 12 (P2) | Headline numbers mixed settings; macro-averaged pooling | Every headline cites its α and N·h² range. Real-data results pool all gene models, with a macro average reported separately. Numbers were cross-checked against the tables by an independent AI verification agent. |
 | P3 | Deprecated license metadata | SPDX `license = "MIT"` with `setuptools>=77`. |
 
 ## Submission-package audit (17 findings, main items)

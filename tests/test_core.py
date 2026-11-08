@@ -236,3 +236,12 @@ def test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds():
     ref = xcal_gene(np.delete(w, 2), np.delete(z, 2), np.delete(G, 2, axis=1), c=0.1, snp_sd=np.delete(sd, 2))
     assert np.isclose(full["z_xcal"], ref["z_xcal"])
     assert np.isclose(full["df"], ref["df"])
+
+
+def test_xcal_from_moments_rejects_bool_nan_and_single_block():
+    with pytest.raises(ValueError):
+        xcal_from_moments(1.0, 1.0, 1.0, c=True)
+    with pytest.raises(ValueError):
+        xcal_from_moments(float("nan"), 1.0, 1.0, c=0.1)
+    with pytest.raises(ValueError):
+        xcal_from_moments(1.0, 1.0, 1.0, c=0.1, L_blocks=np.array([1.0]), Q_blocks=np.array([1.0]))

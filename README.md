@@ -9,26 +9,26 @@
 
 `twas-xcal` implements **XCAL-t**: a summary-statistic TWAS test whose null variance includes the polygenic background of the *GWAS* ancestry, with a reference distribution that accounts for LD-panel noise and for uncertainty in the estimated polygenicity. It also ships a benchmark that **counts** false positives against an exactly known simulated null.
 
-> **v0.3.0** responds to an external re-audit of v0.2.1. Weights are now scaled by GWAS allele-frequency SDs and the jackknife holds them fixed; the standard errors of the estimated intercept and slope are propagated; polygenicity is estimated leave-one-chromosome-out; genomic control is counted exactly; every step records provenance; and the method is applied to Biobank Japan height. All results were regenerated. See [CHANGELOG](CHANGELOG.md) and [docs/AUDIT_RESPONSE.md](docs/AUDIT_RESPONSE.md).
+> **v0.3.0** responds to the author's re-audit of v0.2.1. Weights are now scaled by GWAS allele-frequency SDs and the jackknife holds them fixed; the standard errors of the estimated intercept and slope are propagated; polygenicity is estimated leave-one-chromosome-out; genomic control is counted exactly; every step records provenance; and the method is applied to Biobank Japan height. All results were regenerated. See [CHANGELOG](CHANGELOG.md) and [docs/AUDIT_RESPONSE.md](docs/AUDIT_RESPONSE.md).
 
 ## What the evidence shows (and what it does not)
 Simulation results come from 3,540 trained gene models per ancestry, 500 simulated 1-Mb regions, and 1.06 × 10⁸ counted null tests per setting. The simulated z-scores have an exactly known covariance built from 20,000-person LD, so no estimator is involved in the truth.
 
-1. **The polygenic inflation slope is ancestry-specific.** The slope q of a gene is a weight-specific LD score of the GWAS population (the general slope Φ = q/M of Liang, Nyasimi & Im 2026, Eq. 3). Relative to European LD, its median ratio is 1.04 in East Asian LD (5–95%: 0.62–1.78) and 0.63 in African LD (0.37–1.09).
+1. **The polygenic inflation slope is ancestry-specific.** The slope q of a gene is a weight-specific LD score of the GWAS population (the general slope Φ = q/M of Liang, Nyasimi & Im 2026, Eq. 3). Relative to European LD, its median ratio is 1.04 in East Asian LD (5–95%: 0.62–1.78) and 0.63 in African LD (0.37–1.08).
 2. **Under a polygenic (infinitesimal) background**, variance control with European q is miscalibrated outside Europeans and genomic control fails everywhere. Counted type-I error ÷ nominal, N·h² ≈ 6k–247k:
 
    | GWAS ancestry | α | Standard TWAS | Genomic control | Adapted VC (EUR q, EUR LD) | Adapted VC (EUR q, matched LD) | XCAL (normal ref.) | **XCAL-t** |
    |---|---|---|---|---|---|---|---|
    | European | 10⁻⁴ | 5.9–2,400 | 1.2–5.9 | 1.10–1.40 | 1.10–1.40 | 1.10–1.42 | **1.02–1.07** |
    | European | 2.5 × 10⁻⁶ | 14–64,000 | 1.7–26 | 1.2–1.9 | 1.2–1.9 | 1.2–1.9 | **0.98–1.11** |
-   | East Asian | 10⁻⁴ | 6.4–2,500 | 1.3–6.1 | 1.75–9.0 | 1.32–7.1 | 1.10–1.37 | **1.02–1.03** |
+   | East Asian | 10⁻⁴ | 6.3–2,500 | 1.2–6.0 | 1.75–9.0 | 1.32–7.1 | 1.10–1.37 | **1.02–1.03** |
    | East Asian | 2.5 × 10⁻⁶ | 16–67,000 | 1.8–25 | 3.8–61 | 1.75–35 | 1.3–1.8 | **1.02–1.22** |
    | African | 10⁻⁴ | 3.3–1,500 | 1.1–3.8 | 1.67–2.13 | 0.39–0.63 | 1.09–1.45 | **1.02–1.09** |
    | African | 2.5 × 10⁻⁶ | 5.9–34,000 | 1.4–13 | 8.1–15.8 | 0.46–1.45 | 1.3–2.2 | **1.04–1.20** |
 
    XCAL-t is close to nominal but **slightly liberal** in the extreme tail (up to about 1.2× at α = 2.5 × 10⁻⁶). With a 500-person panel, plain XCAL with a normal reference is not calibrated in the tail; use XCAL-t.
 3. **With a and c estimated** leave-one-chromosome-out (300 genomes per setting, including confounded GWAS with a = 1.1), XCAL-t with propagated standard errors has conditional type-I ratios of 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5 × 10⁻⁶.
-4. **Sparse architectures break every variance correction with a Gaussian reference**, including the oracle that knows the exact null variance. With π = 0.01 (about 4 causal SNPs per Mb) the oracle is 26–61× inflated at α = 10⁻⁴. XCAL-t stays at 0.97–1.01× the oracle at α = 10⁻⁴. When a trait has strong local signals, extreme-tail TWAS hits need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
+4. **Under sparse point-normal architectures, variance calibration with a Gaussian reference is insufficient**: even the oracle that knows the exact null variance fails in the extreme tail. With π = 0.01 (about 4 causal SNPs per Mb) the oracle is 26–61× inflated at α = 10⁻⁴. XCAL-t stays at 0.97–1.01× the oracle at α = 10⁻⁴. When a trait has strong local signals, extreme-tail TWAS hits need locus-level follow-up (conditional analysis, fine-mapping or colocalization).
 
 **Real genotypes (1000 Genomes × MESA models; model-based predictions, no phenotypes).** 12,478 MESA models (P < 0.05) in five 1000 Genomes super-populations; the truth is an independent half-panel, whose own noise puts standard TWAS at 1.28–1.52× at α = 2.5 × 10⁻⁶ even without polygenic signal.
 - Median slope ratio vs European LD: African 0.61 (5–95%: 0.30–1.27), South Asian 0.90, East Asian 0.94, admixed American 1.22.
@@ -56,7 +56,7 @@ pip install "twas-xcal @ git+https://github.com/mqar96/twas-xcal@v0.3.0"
 # extras for the benchmarks:
 pip install "twas-xcal[sim,real] @ git+https://github.com/mqar96/twas-xcal@v0.3.0"
 ```
-Requires Python ≥ 3.10. Tested on Linux and Windows, including minimum supported dependency versions.
+Requires Python ≥ 3.10. Tested on Linux (Python 3.10–3.13, including the minimum core and `[real]` dependency versions) and Windows.
 
 ## Quick start
 ```python

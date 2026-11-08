@@ -11,7 +11,7 @@ MIN_PANEL = 20
 
 def _check_params(c, intercept, se_c=0.0, se_a=0.0):
     for name, x in (("c", c), ("intercept", intercept), ("se_c", se_c), ("se_a", se_a)):
-        if not isinstance(x, numbers.Real) or not np.isfinite(x):
+        if isinstance(x, (bool, np.bool_)) or not isinstance(x, numbers.Real) or not np.isfinite(x):
             raise ValueError(f"{name} must be a finite real number (got {x!r})")
     if c < 0:
         raise ValueError(f"c must be >= 0 (got {c})")
@@ -122,7 +122,12 @@ def xcal_from_moments(num, L, Q, c, intercept=1.0, L_blocks=None, Q_blocks=None,
     D = intercept * L + c * Q
     if np.any(~(D > 0)):
         raise ValueError("non-positive denominator; check the panel and weights")
-    zx = np.asarray(num, float) / np.sqrt(D)
+    num = np.asarray(num, float)
+    if not np.all(np.isfinite(num)):
+        raise ValueError("numerator must be finite")
+    if L_blocks is not None and (np.asarray(L_blocks).shape[0] < 2 or np.asarray(Q_blocks).shape != np.asarray(L_blocks).shape):
+        raise ValueError("jackknife replicates must have at least two blocks and matching L/Q shapes")
+    zx = num / np.sqrt(D)
     out = dict(z_xcal=zx, p_xcal_normal=2 * norm.sf(np.abs(zx)), D=D)
     if L_blocks is not None:
         Db = intercept * np.asarray(L_blocks, float) + c * np.asarray(Q_blocks, float)

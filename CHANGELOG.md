@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/).
 
 ## [0.3.0] - 2026-11-08
-Second corrective release, responding to the author's re-audit of v0.2.1. All results were regenerated from a clean pipeline with per-step provenance.
+Second corrective release, responding to the author's re-audit of v0.2.1. All results were regenerated from scratch in a fresh working directory, with a provenance record for every step (some steps ran on an uncommitted working tree; the recorded source hashes identify the code).
 
 ### Changed (statistical method)
 - **XCAL-t reference distribution (re-audit F1).** Weights are now scaled by **GWAS allele-frequency SDs** (`snp_sd`, `sd_from_eaf`; a `gwas.eaf` or `gwas.sd` column in `run_xcal`). The target null variance D is then fixed. The delete-group jackknife **holds v fixed** and recomputes only the panel correlation, so it estimates Var(D̂/D) as the derivation requires. In the one-SNP case the jackknife variance is now 0 and the reference is normal (unit test). The panel-SD fallback is retained with a warning and reported separately.
@@ -24,7 +24,8 @@ Second corrective release, responding to the author's re-audit of v0.2.1. All re
 - Parameter and input validation (F7): finite c ≥ 0, intercept > 0, SEs ≥ 0, 2 ≤ K with n ≥ max(20, 2K), one-dimensional finite vectors, and coverage in [0, 1].
 - `harmonize` (F8) writes the panel alleles into the effect/other columns, keeps the original labels, is idempotent, normalizes case and rejects duplicate panel SNPs.
 - `matplotlib>=3.9` (F9). All text outputs are UTF-8, and `run_all.sh` sets `PYTHONUTF8=1`.
-- Resumable steps check configuration hashes. The real-genotype configuration hashes genotype files, model and extra files, and source code (F10). Per-region checkpoints were added to scripts 04, 06, 07 and 08, and atomic writes to 02.
+- Configuration-hash resume checks in `03_null_benchmark.py` (per region), `real_calibration.py` (genotype files, model and extra files, source code) and `gwas_application.py` (summary statistics, panel, models, source code; invalid caches are deleted) (F10). Scripts 04, 06, 07 and 08 resume from per-region or per-cell checkpoints **without** a configuration check: delete `<out>.parts/` after changing settings. Atomic writes in 02.
+- Input validation hardened after the result runs: booleans are rejected as numeric parameters, and `xcal_from_moments` rejects a non-finite numerator and fewer than two jackknife blocks. Behaviour on valid input is unchanged; the simulation provenance records therefore show the earlier `core.py` hash.
 - Provenance (F5): `scripts/provenance.py` records the command, git revision and dirty state, imported module path and version, source hashes, environment and timing for every step and attempt. `MANIFEST.json` includes these records. The v0.2.x manifest's "0.1.0" entry was stale editable-install metadata.
 
 ### Added

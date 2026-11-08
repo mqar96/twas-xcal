@@ -99,9 +99,9 @@ python -m pytest tests                # unit tests (incl. the audit counterexamp
 | Panel size, power, estimated c | `06`, `07`, `08` → `09_analyze_extra.py` |
 
 ## Citation
-> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.24028643
+> Rao, M. Q. A. (2026). *twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies* (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.24047656
 
-See [`CITATION.cff`](CITATION.cff). The concept DOI above always resolves to the latest version.
+See [`CITATION.cff`](CITATION.cff). All versions: concept DOI [10.5281/zenodo.24028643](https://doi.org/10.5281/zenodo.24028643).
 
 **Upstream data and methods:**
 - 1000 Genomes Project Consortium (2015), *Nature* 526:68.

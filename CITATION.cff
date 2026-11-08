@@ -17,11 +17,14 @@ authors:
     email: qudduse1234@gmail.com
 version: 0.2.0
 date-released: 2026-11-08
-doi: 10.5281/zenodo.24028643
+doi: 10.5281/zenodo.24047656
 identifiers:
   - type: doi
     value: 10.5281/zenodo.24028643
     description: Concept DOI (all versions)
+  - type: doi
+    value: 10.5281/zenodo.24047656
+    description: Version 0.2.0
   - type: doi
     value: 10.5281/zenodo.24028644
     description: Version 0.1.0 (superseded; see CHANGELOG)

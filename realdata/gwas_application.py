@@ -93,14 +93,20 @@ say(f"models with >=1 usable SNP: {W.groupby(['set', 'gene']).ngroups:,}")
 
 
 def std(X):
-    X = X.astype(np.float64)
-    X = np.where(X < 0, np.nan, X)
-    X = np.where(np.isnan(X), np.nanmean(X, 0), X)
+    X = X.astype(np.float32)
+    X[X < 0] = np.nan
+    mu = np.nanmean(X, 0)
+    bad = np.isnan(X)
+    if bad.any():
+        X[bad] = np.take(mu, np.nonzero(bad)[1])
     sd = X.std(0); ok = sd > 0
-    Z = np.zeros_like(X); Z[:, ok] = (X[:, ok] - X[:, ok].mean(0)) / sd[ok]
-    return Z, sd, ok
+    X -= X.mean(0)
+    X[:, ok] /= sd[ok]
+    X[:, ~ok] = 0.0
+    return X, sd.astype(np.float64), ok
 
 
+CHUNK, PAD = 20_000_000, 3_000_000
 rows = []
 os.makedirs(f"{a.outdir}/per_chr", exist_ok=True)
 for chrom in range(1, 23):
@@ -110,42 +116,48 @@ for chrom in range(1, 23):
             rows.extend(pd.read_csv(pcf).to_dict("records"))
         continue
     r0 = len(rows)
-    bc = bim[bim.chr == chrom]
-    Wc = W[W.chr == chrom]
-    if Wc.empty:
-        open(pcf, "w").write("")
-        continue
-    with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
-        ZT, sT, okT = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
-    with open_bed(a.geno.format("EUR") + ".bed", count_A1=True, num_threads=a.threads) as bed:
-        ZE, sE, okE = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
-    pos = bc.pos.values; base = bc.idx.values[0]
-    blocks = np.array_split(np.random.default_rng(chrom).permutation(ZT.shape[0]), 20)
-    for (s, gene), g in Wc.groupby(["set", "gene"]):
-        loc = g.idx.values - base
-        lo = np.searchsorted(pos, pos[loc].min() - WIN); hi = np.searchsorted(pos, pos[loc].max() + WIN, side="right")
-        sl = loc - lo
-        w = np.zeros(hi - lo); w[sl] = g.w.values
-        zw = np.zeros(hi - lo); zw[sl] = zmap[g.idx.values].values
-        gsd = np.zeros(hi - lo); gsd[sl] = sdmap[g.idx.values].values
-        vG, vT, vE = w * gsd, w * sT[lo:hi], w * sE[lo:hi]
-        mG = panel_moments(ZT[:, lo:hi], vG, okT[lo:hi]); mT = panel_moments(ZT[:, lo:hi], vT, okT[lo:hi])
-        mE = panel_moments(ZE[:, lo:hi], vE, okE[lo:hi])
-        if min(mG["L"], mT["L"], mE["L"]) <= 0:
+    bc_all = bim[bim.chr == chrom]
+    Wc_all = W[W.chr == chrom]
+    gmin = Wc_all.groupby(["set", "gene"]).pos.min()
+    for cs in range(0, int(bc_all.pos.max()) + 1, CHUNK):
+        genes_here = gmin[(gmin >= cs) & (gmin < cs + CHUNK)].index
+        if len(genes_here) == 0:
             continue
-        Lb, Qb = jackknife_moments(ZT[:, lo:hi], vG, blocks=blocks)
-        D = aint * mG["L"] + c * mG["Q"]
-        df = float(satterthwaite_df(aint * Lb + c * Qb, D, extra_var=(mG["Q"] * se_c) ** 2 + (mG["L"] * se_a) ** 2))
-        qE = mE["Q"] / mE["L"]
-        zG, zT, zE = vG @ zw, vT @ zw, vE @ zw
-        r = dict(set=s, gene=gene, genename=g.genename.iloc[0], chr=chrom, n_snps=len(g),
-                 z_standard_target=zT / np.sqrt(mT["L"]), z_standard_eur=zE / np.sqrt(mE["L"]),
-                 z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (1 + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (1 + c * qE)),
-                 z_xcal=zG / np.sqrt(D), df_xcalt=df, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
-        r["p_xcalt"] = 2 * tdist.sf(abs(r["z_xcal"]), df)
-        for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):
-            r[k.replace("z_", "p_")] = 2 * norm.sf(abs(r[k]))
-        rows.append(r)
+        bc = bc_all[(bc_all.pos >= cs - PAD) & (bc_all.pos < cs + CHUNK + PAD)]
+        with open_bed(a.geno.format(a.target) + ".bed", count_A1=True, num_threads=a.threads) as bed:
+            ZT, sT, okT = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
+        with open_bed(a.geno.format("EUR") + ".bed", count_A1=True, num_threads=a.threads) as bed:
+            ZE, sE, okE = std(bed.read(index=np.s_[:, bc.idx.values], dtype="int8"))
+        pos = bc.pos.values; base = bc.idx.values[0]
+        blocks = np.array_split(np.random.default_rng(chrom * 1000 + cs // CHUNK).permutation(ZT.shape[0]), 20)
+        Wc = Wc_all.set_index(["set", "gene"]).loc[genes_here].reset_index()
+        for (s, gene), g in Wc.groupby(["set", "gene"]):
+            loc = g.idx.values - base
+            lo = np.searchsorted(pos, pos[loc].min() - WIN); hi = np.searchsorted(pos, pos[loc].max() + WIN, side="right")
+            sl = loc - lo
+            w = np.zeros(hi - lo); w[sl] = g.w.values
+            zw = np.zeros(hi - lo); zw[sl] = zmap[g.idx.values].values
+            gsd = np.zeros(hi - lo); gsd[sl] = sdmap[g.idx.values].values
+            vG, vT, vE = w * gsd, w * sT[lo:hi], w * sE[lo:hi]
+            ZTw, ZEw = ZT[:, lo:hi].astype(np.float64), ZE[:, lo:hi].astype(np.float64)
+            mG = panel_moments(ZTw, vG, okT[lo:hi]); mT = panel_moments(ZTw, vT, okT[lo:hi])
+            mE = panel_moments(ZEw, vE, okE[lo:hi])
+            if min(mG["L"], mT["L"], mE["L"]) <= 0:
+                continue
+            Lb, Qb = jackknife_moments(ZTw, vG, blocks=blocks)
+            D = aint * mG["L"] + c * mG["Q"]
+            df = float(satterthwaite_df(aint * Lb + c * Qb, D, extra_var=(mG["Q"] * se_c) ** 2 + (mG["L"] * se_a) ** 2))
+            qE = mE["Q"] / mE["L"]
+            zG, zT, zE = vG @ zw, vT @ zw, vE @ zw
+            r = dict(set=s, gene=gene, genename=g.genename.iloc[0], chr=chrom, n_snps=len(g),
+                     z_standard_target=zT / np.sqrt(mT["L"]), z_standard_eur=zE / np.sqrt(mE["L"]),
+                     z_vc_eur_eurld=zE / np.sqrt(mE["L"] * (1 + c * qE)), z_vc_eur_targetld=zT / np.sqrt(mT["L"] * (1 + c * qE)),
+                     z_xcal=zG / np.sqrt(D), df_xcalt=df, q_target=mG["Q"] / mG["L"], q_eur=qE, floor=mG["floor_active"])
+            r["p_xcalt"] = 2 * tdist.sf(abs(r["z_xcal"]), df)
+            for k in ("z_standard_target", "z_standard_eur", "z_vc_eur_eurld", "z_vc_eur_targetld", "z_xcal"):
+                r[k.replace("z_", "p_")] = 2 * norm.sf(abs(r[k]))
+            rows.append(r)
+        del ZT, ZE
     pd.DataFrame(rows[r0:]).to_csv(pcf + ".tmp", index=False); os.replace(pcf + ".tmp", pcf)
     say(f"chr{chrom}: {len(rows):,} models ({time.time() - t0:.0f}s)")
 R = pd.DataFrame(rows)

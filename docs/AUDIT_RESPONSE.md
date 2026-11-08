@@ -1,4 +1,24 @@
-# Response to the independent audit of v0.1.0 (7 November 2026)
+# Audit responses
+
+## Re-audit of v0.2.1 (8 November 2026): response in v0.3.0
+The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are addressed below. Results were regenerated from a clean pipeline with per-step provenance (`results/provenance/`).
+
+| ID | Finding | Response in v0.3.0 |
+|---|---|---|
+| F1 (P1) | The jackknife estimated Var(D̂) while v = w∘ŝ moved with the panel, so it did not target Var(D̂/D). One-SNP counterexample. | Weights are now scaled by GWAS allele-frequency SDs, so D is fixed. The jackknife holds v fixed and recomputes only the panel correlation, so it estimates Var(D̂/D). The one-SNP case now gives zero jackknife variance and a normal reference (`test_reaudit_one_snp_counterexample_gives_normal_reference`). The t rule is described as an approximation validated by counting; the claimed conservativeness argument was removed. The panel-SD fallback is reported separately in every benchmark. |
+| F2 (P1) | Estimated-parameter tail predictions conditioned on parameters fitted from the same z-scores; SEs not propagated; counted experiment too small. | Leave-one-chromosome-out fitting makes the fitted (â, ĉ) independent of the tested statistics. SEs are propagated into ν. There are 300 genomes per setting (about 10⁶ tests), confounded settings (a = 1.1) and two-way genome × region bootstrap CIs. Conditional rates are reported only in the independent-fit design. The paper limits its extreme-tail claims to what these support. |
+| F3 | Liang et al. Eq. 3 already gives the general formula; the comparator is an adaptation. | Eq. 3 is credited explicitly. The comparator is labelled "adapted variance control (EUR q)" everywhere, with its construction stated. Conclusions are phrased as "transferring a European-derived q", not as a test of the published fitting procedure. |
+| F4 | Thresholds missing next to oracle ratios; conservative vs calibrated; sparse-null wording. | The α is stated wherever an oracle ratio appears. "Conservative control" and "nominal calibration" are distinguished. The sparse result is stated for the tested point-normal null with a redrawn causal configuration. |
+| F5 | Manifest recorded twas-xcal 0.1.0. | That entry was stale editable-install metadata. Every step is now wrapped by `scripts/provenance.py` (git revision, dirty flag, imported module path and version, source hashes, environment, command, timing). The manifest embeds these records. |
+| F6 | GC grid-interpolated, 300 bootstraps. | GC is counted exactly in a second deterministic pass, with 2,000 bootstraps for every method. |
+| F7 | Invalid c, intercept and K accepted. | Validation and targeted tests added. |
+| F8 | Harmonized values kept old allele labels. | Labels are updated, originals kept, calls are idempotent; case is normalized and duplicate panel SNPs rejected; tests added. |
+| F9 | Matplotlib floor; Windows cp1252 failure. | `matplotlib>=3.9`; UTF-8 for all text output; `PYTHONUTF8=1` in `run_all.sh`. |
+| F10 | One-command scope; raw-file reproduction; resume validation. | `run_all.sh` is documented as simulation-only, with the real-genotype and real-GWAS steps documented separately. `05_analyze_null.py --combined` rebuilds every null table from the archived raw file. Configuration-hash resume checks cover the simulation and real pipelines. |
+| F11 | Reviewer and assistance statements. | The acknowledgment now states that the author audited the work. The AI-use statement describes the assistance; no colleague is credited. |
+| F12 | Legend whiskers, METHODS numbers and factorization, CADET authors, release notes, metadata, presentation. | Whiskers set to 5th–95th percentiles; METHODS corrected; all reference author lists regenerated from Crossref (APA 7); old release notes marked superseded; repository About text updated; equations, line numbers and figure fonts improved. |
+
+## Independent audit of v0.1.0 (7 November 2026)
 
 Two audit reports reviewed v0.1.0 (commit `0c0bf90`) and the submission package. Every finding below was checked against the code and accepted. v0.2.0 addresses each one, and all results were regenerated from scratch.
 

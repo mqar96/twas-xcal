@@ -78,6 +78,7 @@ T = pd.DataFrame(rows)
 T.to_csv(f"{a.outdir}/table_null_counts.csv", index=False)
 
 orc = T[T.method == METHODS["ORACLE"]].set_index(["gwas_pop", "pi", "c"])
+np.seterr(divide="ignore", invalid="ignore")
 RO = T[["gwas_pop", "pi", "c", "Nh2_equiv", "method"]].copy()
 for al in ALPHAS:
     RO[f"ratio_to_oracle_{al:g}"] = T[f"rate_{al:g}"].values / orc.loc[list(zip(T.gwas_pop, T.pi, T.c)), f"rate_{al:g}"].values

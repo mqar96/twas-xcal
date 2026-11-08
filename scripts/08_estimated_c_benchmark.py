@@ -50,11 +50,11 @@ for gidx, g in enumerate(POPS):
             Lb, Qb = P.jackknife(v, K=20, seed=rid)
             av = Rg @ v
             genes.append(dict(v=v, L=m["L"], Q=m["Q"], Lb=Lb, Qb=Qb, C0=float(v @ av), C1=float(av @ av)))
-        regs.append(dict(rid=rid, chrom=len(regs) * a.chromosomes // 500, l=ld_scores(d[f"{g}_ldref"], d["pos"], window_bp=2_000_000),
+        regs.append(dict(rid=rid, chrom=0, l=ld_scores(d[f"{g}_ldref"], d["pos"], window_bp=2_000_000),
                          Rg=Rg, F=U * np.sqrt(np.clip(lam, 0, None)), genes=genes))
     nreg = len(regs)
-    for x in regs:
-        x["chrom"] = min(x["chrom"], a.chromosomes - 1)
+    for i, x in enumerate(regs):
+        x["chrom"] = i * a.chromosomes // nreg
     ldall = np.concatenate([x["l"] for x in regs])
     chrom_snp = np.concatenate([np.full(len(x["l"]), x["chrom"]) for x in regs])
     for ci, (pi, c, a_true) in enumerate(CELLS):

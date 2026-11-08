@@ -1,7 +1,7 @@
 method,n_models,lambda_median,n_sig_bonferroni,n_sig_genomewide_2p5e6,n_distinct_genes_bonf
 "Standard TWAS, EAS LD",12195,2.749848486423623,445,413,318
 "Standard TWAS, EUR LD",12195,2.6497925622186402,427,399,302
-"Adapted variance control (EUR q), EUR LD",12195,1.053253646106649,52,46,41
-"Adapted variance control (EUR q), EAS LD",12195,1.1001264869148437,54,48,39
+"Adapted variance control (EUR q), EUR LD",12195,0.9873709662928307,44,40,34
+"Adapted variance control (EUR q), EAS LD",12195,1.0303241941446948,49,45,34
 XCAL (normal reference),12195,1.0886775824105375,47,42,35
 XCAL-t (GWAS SDs; recommended),12195,1.0859955538234085,44,40,32

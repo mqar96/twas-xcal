@@ -15,8 +15,8 @@
   "1"
  ],
  "cwd": "/home/claude/p03",
- "start": "2026-11-08T14:20:33.341407+00:00",
- "git_revision": "affccd0587e211d354b8f81a6ddc1fd56493ce4c",
+ "start": "2026-11-08T17:18:35.044519+00:00",
+ "git_revision": "5a57fe56e4ec63051e6de623b0e3049036dc11b0",
  "git_dirty": true,
  "xcal_module": "/home/claude/twas-xcal/xcal/__init__.py",
  "xcal_version": "0.3.0",
@@ -233,7 +233,7 @@
  "source_sha256": {
   "xcal/__init__.py": "23353c2407b812fcf07dbc3a4c97cea2b4c7390b0afa499b7d036cf32cbc846c",
   "xcal/calibration.py": "b57b6470dcbb3719809901ed8a774342da350c73b7e5f5c60920dc90e0de8865",
-  "xcal/core.py": "68220e37e6fc94e6a8e7fa15a4a028d2bf63a340669a066a3f1b794f1672e76a",
+  "xcal/core.py": "2d8e7e8a60e6cda944b31f2a6edc75a6fb7e8f6e49548b994241eafda6fb89ee",
   "xcal/genotypes.py": "4ac3320b941e8dc9fbcfd0e48b04990c388ae46958a489908ad8e04a0441ff1e",
   "scripts/00_estimator_bias.py": "5dcef3f84dc1efa692831a2c6278dad6c662e531978171fe6a5a99ed9edb284b",
   "scripts/01_simulate_genotypes.py": "7a0aea1780679ca0da82f6ca287364e729161ec6b30a37cfcb393d3a088cc4dc",
@@ -249,11 +249,11 @@
   "scripts/provenance.py": "c08a0bde269815e6ba35133155f94255b8279c0f2a8091e305dd1d1ac6540f8d",
   "scripts/run_all.sh": "960eefbecf8196ce9b016b9db1720fc7ef0bdc3ff9ec784f0224b66d834aae82",
   "realdata/analyze_real.py": "aefef90cdc2f880036a394a02fed8114cacc199c82a770770636e4e6995c3130",
-  "realdata/gwas_application.py": "5b72f0716564701d93585f62ee16804ce08a02fe57787e0c84d4cff275bd1c57",
+  "realdata/gwas_application.py": "58cb9d677af117d1e980b4ef1866a254892752200b1bd80bddbb910b7fce3412",
   "realdata/read_divpop.py": "5837da9be577be3b9df68b0f587866113cf3de4076d238299d383e2f3cb23457",
   "realdata/real_calibration.py": "e75b49bd049957ffbc16d0a0bae478f427a69e80b3295b4e7c7537d05ec627e4",
   "realdata/verify_inputs.py": "90b1bdc9db83b6a08e32e9d1daa71cb72bb0eeb27b8723a5cd523a4c7acd55b0"
  },
- "end": "2026-11-08T15:07:32.358970+00:00",
+ "end": "2026-11-08T18:16:35.884738+00:00",
  "exit_code": 0
 }

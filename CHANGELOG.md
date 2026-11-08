@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-11-08
+### Removed
+- Obsolete `scripts/03_null_calibration.py` (v0.1.0 analytic benchmark; replaced by `03_null_benchmark.py`, and it imported functions removed in 0.2.0).
+- Build artefacts (`twas_xcal.egg-info/`) accidentally included in the 0.2.0 tag.
+
+No change to code behaviour or results.
+
 ## [0.2.0] - 2026-11-08
 Corrective release responding to an independent audit of v0.1.0. All results were regenerated from scratch.
 

@@ -1,5 +1,7 @@
 # XCAL-t: theory, estimators and limits (v0.3.0)
 
+For version identity and current qualifications, see [Submission review](SUBMISSION_REVIEW.md). Historical numerical results below are those of v0.3.0.
+
 ## 1. Setup and null model
 A summary-statistic TWAS test (S-PrediXcan form) combines:
 - expression weights **w** on the allele-dosage scale;
@@ -8,7 +10,7 @@ A summary-statistic TWAS test (S-PrediXcan form) combines:
 
 With per-SNP genotype SDs **s**, the numerator is v'z with v = w ∘ s.
 
-**Polygenic null.** Assume standardized per-SNP effects with mean 0 and variance h²/M, a GWAS of size N, LD Σ_G in the GWAS population and LD-score-regression intercept a. Then
+**Polygenic null.** Assume mutually uncorrelated standardized per-SNP effects with mean 0 and common variance h²/M, a GWAS of size N, LD Σ_G in the GWAS population and LD-score-regression intercept a. Then
 
     Cov(z) = a Σ_G + c Σ_G²,   c = N h² / M,
     Var(v'z) = a v'Σ_G v + c v'Σ_G² v.
@@ -31,14 +33,14 @@ The variance result uses only second moments of the effects. When few SNPs carry
 
 Here R̂ is the sample correlation matrix of an LD panel of the GWAS ancestry, with n individuals and p polymorphic SNPs in the window.
 
-**Recommended scaling: GWAS SDs.** Use v = w ∘ s_GWAS, with s_GWAS = sqrt(2 f (1 − f)) from the GWAS allele frequencies (`sd_from_eaf`). Then v does not depend on the panel, and the target D = a v'Σv + c v'Σ²v is a fixed number.
+**Recommended scaling: GWAS SDs.** Use v = w ∘ s_GWAS, with s_GWAS = sqrt(2 f (1 − f)) from the GWAS allele frequencies (`sd_from_eaf`). For a fixed retained SNP set and externally supplied frequencies, v does not depend on the LD-estimation panel, and the target D = a v'Σv + c v'Σ²v is a fixed number.
 
 **SNPs the panel cannot describe.** A weight SNP that is missing or monomorphic in the LD panel is removed from v (numerator and denominator alike), and the lost share of squared weight is reported as coverage. Keeping it in the numerator while the panel denominator ignores it underestimates D; with panel SDs this happens implicitly because ŝ = 0, but with GWAS SDs it must be done explicitly (`xcal_gene` does so; unit test `test_snp_monomorphic_in_panel_is_dropped_from_numerator_with_gwas_sds`). In the simulation benchmark no gene model had weight on such a SNP; in 1000 Genomes half-panels it occurs.
 
-**Fallback: panel SDs.** If GWAS frequencies are unavailable, v = w ∘ ŝ_panel. The inference below is then conditional on the panel SDs, and the package warns about it.
+**Fallback: panel SDs.** If GWAS frequencies are unavailable, v = w ∘ ŝ_panel. Holding this panel-derived vector fixed during deletion is an additional approximation, not a conditional-validity theorem; the package warns about it.
 
 ## 3. Estimating v'Σ²v
-**Uncorrected plug-in.** For Gaussian data with known means, E[S²] = (1 + 1/n) Σ² + (tr Σ / n) Σ. So the plug-in ‖R̂v‖² overstates v'Σ²v by about (p/n) v'Σv.
+**Uncorrected plug-in.** For an uncentered Gaussian sample covariance matrix with known population standardization, E[S²] = (1 + 1/n) Σ² + (tr Σ / n) Σ. So the plug-in ‖R̂v‖² overstates v'Σ²v by about (p/n) v'Σv.
 
 **Moment-corrected estimator.**
 
@@ -65,7 +67,7 @@ with numerator and denominator independent. Approximating D̂/D by χ²_ν / ν,
 
 **Estimating τ².** τ² is estimated with a delete-group jackknife over panel individuals (K = 20 random groups). **v is held fixed** and each replicate recomputes the correlation matrix of the retained individuals (`jackknife_moments`). The jackknife therefore targets Var(D̂) for the fixed D (as an approximation; the delete-group jackknife is not exact for this statistic).
 
-**The one-SNP example.** With p = 1, R̂ ≡ 1 and Q̂ = v² (the floor binds), so D̂ = (a + c)v² for every panel. The jackknife variance is then 0, ν reaches its upper clip, and the reference is normal, which is correct. This is a unit test.
+**The one-SNP example.** With p = 1, R̂ ≡ 1 and Q̂ = v² (the floor binds), so D̂ = (a + c)v² for every panel. The jackknife variance is then 0, ν reaches its upper clip, and the t reference is effectively normal under the stated Gaussian assumptions. This is a unit test.
 
 v0.2 recomputed v inside the jackknife. That estimated Var(D̂) for a target that itself moved with the panel, and in this example produced needless finite ν.
 
@@ -76,15 +78,15 @@ v0.2 recomputed v inside the jackknife. That estimated Var(D̂) for a target tha
 
 The rule is therefore an approximation whose type-I behaviour we **validate by counting** (Section 6). We do not claim it is proven conservative.
 
-**What the counting showed (v0.3.0).** With known a and c, XCAL-t was slightly liberal: counted ratios 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6, in line with the analytic prediction for the same panels (1.00–1.08 and 1.01–1.13). The excess persisted with 5,000-person panels (model-based: 1.01–1.07 at 5,000; 0.94–1.10 over 500–5,000), so it reflects the small negative bias of Q̂ and the scaled-χ² approximation rather than panel size. With a and c estimated leave-one-chromosome-out and their SEs propagated, conditional ratios were 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6.
+**What the counting showed (v0.3.0).** With known a and c, XCAL-t was slightly liberal: counted ratios 1.02–1.09 at α = 10⁻⁴ and 0.98–1.22 at α = 2.5e-6, in line with the analytic prediction for the same panels (1.00–1.08 and 1.01–1.13). The excess persisted with 5,000-person panels (model-based: 1.01–1.07 at 5,000; 0.94–1.10 over 500–5,000), which is consistent with contributions from the small negative bias of Q̂ and the scaled-χ² approximation, although this experiment does not isolate their contributions. With a and c estimated leave-one-chromosome-out and their SEs propagated, approximate model-based Gaussian ratios in the nonzero infinitesimal settings were 0.99–1.03 at α = 10⁻⁴ and 0.98–1.05 at α = 2.5e-6.
 
-**Panel-SD fallback.** With v = w ∘ ŝ_panel, the same computation holds v fixed at the panel SDs. It approximates the variance of D̂ conditional on ŝ. The benchmark reports this variant separately.
+**Panel-SD fallback.** With v = w ∘ ŝ_panel, the same computation holds v fixed at the panel SDs. The jackknife does not in general establish the ratio-variance target or conditional validity when the vector comes from that same panel. The benchmark reports this variant separately.
 
 **Uncertainty in a and c.** With standard errors se_a and se_c (from `estimate_c`), and the estimates obtained independently of the tested z (Section 5),
 
     τ² = [Var_jk(D̂) + Q̂² se_c² + L̂² se_a²] / D̂²
 
-(first-order delta method; a–c covariance ignored). Users should treat this as an approximation and fit a and c leaving out the chromosome being tested.
+(diagonal first-order approximation; a–c covariance and interactions with LD-moment estimation are omitted). A full first-order expression would also contain 2 L̂ Q̂ Cov(â,ĉ); its omission has no universal conservative direction. Users should treat this as an approximation and fit a and c leaving out the chromosome being tested.
 
 ## 5. Estimating c and a
 `estimate_c` regresses z² on LD scores ℓ_j = Σ_k r̃²_jk, with r̃² = r² − (1 − r²)/(n − 2), computed from a panel of the GWAS ancestry (`ld_scores`).
@@ -102,7 +104,7 @@ The rule is therefore an approximation whose type-I behaviour we **validate by c
 |---|---|---|
 | Simulation null (`03`) | Covariance of the simulated z-scores, built from 20,000-person LD (exact) | **Counted** rejections, about 10⁸ tests per setting, down to α = 2.5e-6, with 2,000 region-bootstrap resamples. Genomic control is counted exactly in a second deterministic pass using λ from the first pass (the median χ² is read from a 2,000-point grid of counts). |
 | Individual-level GWAS (`04`) | Realized z-scores (N = 10,000) | Counted at α = 0.05 and 0.01 |
-| Estimated a and c (`08`) | As in `03`; a and c re-estimated leave-one-chromosome-out from each simulated genome | Counted at α ≥ 1e-4 with two-way (genome × region) bootstrap CIs. At smaller α, conditional rates are computed, which is valid because the fitted parameters are independent of the tested statistics (infinitesimal setting only). |
+| Estimated a and c (`08`) | As in `03`; a and c re-estimated leave-one-chromosome-out from each simulated genome | Counted at α ≥ 1e-4 with two-way (genome × region) bootstrap CIs. At smaller α, model-based Gaussian rates are computed for infinitesimal settings. Pilot SEs from the first five evaluated genomes excluding pseudo-chromosome 0 are reused across chromosomes and genomes; this prevents interpreting the entire calculation as exact conditional calibration. |
 | Panel size (`06`), power (`07`) | Exact truth from 20,000-person LD | Model-based (analytic) |
 | Real genotypes (`realdata/`) | Independent half-panel LD (estimated) | Model-based predictions, no phenotypes |
 | Real GWAS (`realdata/gwas_application.py`) | Unknown | Descriptive comparison of methods |
@@ -115,3 +117,6 @@ The rule is therefore an approximation whose type-I behaviour we **validate by c
 - **Traits:** continuous traits.
 - **Ancestry:** a homogeneous GWAS ancestry with a matching panel. Admixed GWAS need local-ancestry LD (e.g. CADET).
 - **Reference distribution:** Gaussian z-score tails, and the approximate t reference of Section 4.
+
+
+Review clarification: the fixed-vector argument assumes a fixed retained SNP set. Panel-dependent exclusions and use of panel-derived SDs require additional approximation. The diagonal parameter-uncertainty adjustment omits a–c covariance and interactions with estimated LD moments. Genomic-control bootstrap intervals hold the fitted lambda fixed.

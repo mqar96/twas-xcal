@@ -1,7 +1,7 @@
 {
   "title": "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies",
   "upload_type": "software",
-  "description": "<p><b>twas-xcal</b> provides XCAL-t, an ancestry-aware null calibration for summary-statistic TWAS tests (S-PrediXcan type) under polygenic backgrounds. The polygenic inflation slope of a TWAS statistic is a weight-specific LD score of the GWAS population (the general slope of Liang, Nyasimi &amp; Im 2026), so variance-control corrections computed in European LD are miscalibrated in other ancestries. XCAL-t scales weights by GWAS allele-frequency SDs, uses an ancestry-matched LD panel with a moment-corrected estimator of the polygenic variance term, LD-score-regression estimates of the intercept and slope (leave-one-chromosome-out), and a delete-group jackknife Satterthwaite t reference that also propagates the LDSC standard errors.</p><p>The release includes a benchmark that counts false positives against an exactly known simulated null (3,540 gene models per ancestry, 1.06e8 tests per setting, infinitesimal and sparse architectures, exact genomic-control counts), an individual-level GWAS check, a leave-one-chromosome-out benchmark with estimated intercept and slope (including confounded GWAS), a real-genotype benchmark (1000 Genomes phase 3 x 12,478 MESA expression models; model-based) and an application to Biobank Japan height (12,195 models), with per-step provenance records. Version 0.3.0 responds to a re-audit of v0.2.1; v0.2.x and v0.1.0 are superseded (see CHANGELOG and docs/AUDIT_RESPONSE.md).</p>",
+  "description": "<p>Maintenance development source. Reported scientific analyses remain v0.3.0, DOI 10.5281/zenodo.24062489. Current source adds retained-coverage, allele-frequency metadata, validation and resumption fixes. No new scientific results are claimed. The t reference and diagonal uncertainty propagation are approximate; estimated-parameter extreme-tail calculations reuse pilot SEs and omit a–c covariance. See docs/SUBMISSION_REVIEW.md for current qualifications.</p>",
   "creators": [
     {
       "name": "Rao, Muhammad Qudduse Ahmad",
@@ -32,5 +32,5 @@
       "scheme": "url"
     }
   ],
-  "version": "0.3.0"
+  "version": "0.3.1.dev0"
 }

@@ -26,6 +26,8 @@ ZA = norm.isf(ALPHAS / 2)
 METHODS = ["ORACLE", "STD_M", "STD_E", "VC_E_E", "VC_E_M", "XCAL", "XCALT", "XCALT_PSD"]
 GRID = np.logspace(-3, 3.5, 2000)
 SCRIPT_SHA = hashlib.sha256(open(__file__, "rb").read()).hexdigest()
+import xcal.core as _core
+CORE_SHA = hashlib.sha256(open(_core.__file__, "rb").read()).hexdigest()
 LAMBDA = None
 if a.gc_lambda:
     lt = pd.read_csv(a.gc_lambda)
@@ -42,7 +44,7 @@ def psd_sqrt(C):
 
 
 def config_hash(rid, wf):
-    cfg = dict(script=SCRIPT_SHA, reps=a.reps, cells=CELLS, alphas=ALPHAS.tolist(), geno=sha(f"{a.genodir}/region_{rid:04d}.npz"),
+    cfg = dict(script=SCRIPT_SHA, core=CORE_SHA, reps=a.reps, cells=CELLS, alphas=ALPHAS.tolist(), geno=sha(f"{a.genodir}/region_{rid:04d}.npz"),
                weights=sha(wf), gc=sorted((k[0], k[1], k[2], v) for k, v in LAMBDA.items()) if LAMBDA else None)
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
 

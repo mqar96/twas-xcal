@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 M=Rao_TWAS_XCAL_GeneticEpidemiology_manuscript
 C=Rao_cover_letter_GeneticEpidemiology
 python3 - <<'PY'
-s = open("manuscript.md").read()
+s = open("manuscript_source.md").read()
 legends = s.split("## Figure legends")[1]
 figs = ["Figure1_counted_type1_genomewide.png", "Figure2_inflation_slope_ratio_simulation.png", "Figure3_sparse_architectures.png",
         "Figure4_power.png", "Figure5_real_inflation_slope_ratio.png", "Figure6_real_genotype_calibration.png", "Figure7_bbj_height_qq.png"]
@@ -18,7 +18,7 @@ def sup(t):
 open("manuscript_with_figures.md", "w").write(sup(s + block))
 PY
 pandoc manuscript_with_figures.md -o $M.docx --resource-path=.:figures
-pandoc cover_letter.md -o $C.docx
+pandoc cover_letter_source.md -o $C.docx
 python3 - "$M.docx" "$C.docx" <<'PY'
 import sys
 from docx import Document

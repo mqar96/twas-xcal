@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use twas-xcal, please cite it as below."
+message: "For the reported scientific analyses cite v0.3.0, DOI 10.5281/zenodo.24062489. Current main is development source 0.3.1.dev0, with no new version DOI."
 type: software
 title: "twas-xcal: ancestry-aware null calibration for transcriptome-wide association studies"
 abstract: >-
@@ -17,8 +17,7 @@ authors:
     affiliation: "Independent Researcher, Lahore, Pakistan"
     orcid: "https://orcid.org/0009-0001-8731-7080"
     email: qudduse1234@gmail.com
-version: 0.3.0
-date-released: 2026-11-08
+version: 0.3.1.dev0
 doi: 10.5281/zenodo.24028643
 identifiers:
   - type: doi

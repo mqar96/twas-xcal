@@ -1,5 +1,7 @@
 # Audit responses
 
+> **Current qualification (9 November 2026):** the historical v0.3.0 claims below must be read with [the final review clarifications](SUBMISSION_REVIEW.md). In particular, reused pilot SEs prevent treating the estimated-parameter rates as exact conditional calibration; the panel-SD fallback has no general conditional-validity result.
+
 ## Re-audit of v0.2.1 (8 November 2026): response in v0.3.0
 The author re-audited v0.2.1 and found 12 issues: two P1 and ten P2/P3. All are addressed below. Results were regenerated from scratch with a provenance record for every step (`results/provenance/`); the records show which steps ran on an uncommitted working tree and the source hashes that ran.
 

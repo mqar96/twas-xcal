@@ -1,5 +1,7 @@
 # Real-genotype benchmark (1000 Genomes × MESA)
 
+See [current review qualifications](../docs/SUBMISSION_REVIEW.md) for half-panel uncertainty, scale conventions and coverage reporting. The reported analyses remain v0.3.0.
+
 This benchmark uses **real genotypes and real published expression models, but no real phenotypes**. Each 1000 Genomes super-population is split into two random halves:
 - **Half A** is the LD panel the methods use.
 - **Half B** stands in for the GWAS-population LD. Its LD moments are estimated with the same bias-corrected estimator.

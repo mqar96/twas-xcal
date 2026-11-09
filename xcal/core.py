@@ -120,8 +120,8 @@ def xcal_from_moments(num, L, Q, c, intercept=1.0, L_blocks=None, Q_blocks=None,
     L = np.asarray(L, float)
     Q = np.asarray(Q, float)
     D = intercept * L + c * Q
-    if np.any(~(D > 0)):
-        raise ValueError("non-positive denominator; check the panel and weights")
+    if np.any(~np.isfinite(D)) or np.any(~(D > 0)):
+        raise ValueError("denominator must be finite and positive; check the panel and weights")
     num = np.asarray(num, float)
     if not np.all(np.isfinite(num)):
         raise ValueError("numerator must be finite")
@@ -159,6 +159,7 @@ def xcal_gene(w, z, G, c, intercept=1.0, snp_sd=None, K=20, seed=0, se_c=0.0, se
     _check_K(K, Z.shape[0])
     if snp_sd is None:
         sd, source = s, "panel"
+        warnings.warn("using panel SDs: the fixed-vector jackknife is an additional approximation", RuntimeWarning, stacklevel=2)
     else:
         sd = np.asarray(snp_sd, float)
         if sd.shape != w.shape or np.any(~np.isfinite(sd)) or np.any(sd < 0):
@@ -205,6 +206,8 @@ def ld_scores(G, pos=None, window_bp=1_000_000):
 
 def estimate_c(z, ld, n_blocks=200, fix_intercept=None):
     """LD-score regression of z^2 on LD scores: returns c (slope), intercept a, block-jackknife SEs and cov(a, c)."""
+    if isinstance(n_blocks, (bool, np.bool_)) or not isinstance(n_blocks, numbers.Integral) or n_blocks < 0 or n_blocks == 1:
+        raise ValueError("n_blocks must be 0 (no SE) or an integer >= 2")
     z = np.asarray(z, float)
     ld = np.asarray(ld, float)
     if z.shape != ld.shape:
@@ -284,6 +287,14 @@ def harmonize(df, snp_alleles, effect_col="effect_allele", other_col="other_alle
     status = np.select([m.a1.isna(), ambiguous, same, flip], ["not_in_panel", "ambiguous", "aligned", "flipped"], "mismatch")
     m["harmonize_status"] = status
     m[value_col] = np.where(status == "flipped", -m[value_col], m[value_col])
+    if "eaf" in m:
+        eaf = pd.to_numeric(m["eaf"], errors="raise").to_numpy(float)
+        usable = np.isin(status, ["aligned", "flipped"])
+        if np.any(~np.isfinite(eaf[usable])) or np.any((eaf[usable] < 0) | (eaf[usable] > 1)):
+            raise ValueError("eaf must be finite and in [0, 1] for retained SNPs")
+        if "original_eaf" not in m:
+            m["original_eaf"] = m["eaf"]
+        m["eaf"] = np.where(status == "flipped", 1.0 - eaf, eaf)
     for col in (effect_col, other_col):
         if f"original_{col}" not in m:
             m[f"original_{col}"] = m[col]
@@ -336,7 +347,7 @@ def run_xcal(weights, gwas, panel_genotypes, panel_snps, panel_pos, c, intercept
         gsd = sd_from_eaf(gwas["eaf"].to_numpy(float))
     else:
         gsd = None
-        warnings.warn("gwas has no 'eaf' or 'sd' column; using panel SDs (XCAL-t df then conditional on the panel SDs)")
+        warnings.warn("gwas has no 'eaf' or 'sd' column; using panel SDs (fixed-vector XCAL-t is then an additional approximation)")
     col = pd.Series(np.arange(len(panel_snps)), index=panel_snps)
     zmap = pd.Series(gwas["z"].values, index=gwas["snp"].values)
     sdmap = pd.Series(gsd, index=gwas["snp"].values) if gsd is not None else None
@@ -349,9 +360,20 @@ def run_xcal(weights, gwas, panel_genotypes, panel_snps, panel_pos, c, intercept
         row = dict(gene=gene, n_snps_model=len(g), n_not_in_panel=int((~in_panel).sum()),
                    n_not_in_gwas=int((in_panel & ~in_gwas).sum()), n_snps_used=len(use),
                    weight_coverage=float((use.weight ** 2).sum() / total_w2) if total_w2 > 0 else 0.0)
+        row["n_monomorphic_in_panel"] = 0
+        if not use.empty:
+            used_idx = col[use.snp].values
+            used_G = np.asarray(G[:, used_idx], dtype=float)
+            if not np.all(np.isfinite(used_G)):
+                raise ValueError("genotype matrix contains missing or non-finite values; impute before calling")
+            polymorphic = np.std(used_G, axis=0) > 0
+            row["n_monomorphic_in_panel"] = int((~polymorphic).sum())
+            row["n_snps_used"] = int(polymorphic.sum())
+            row["weight_coverage"] = float(np.sum(use.weight.to_numpy(float)[polymorphic] ** 2) / total_w2) if total_w2 > 0 else 0.0
         if use.empty or row["weight_coverage"] < min_coverage or row["weight_coverage"] == 0:
             out.append(dict(row, status="insufficient_coverage"))
             continue
+        # Retain the original matched-SNP window; xcal_gene removes monomorphic contributions.
         widx = col[use.snp].values
         lo, hi = panel_pos[widx].min() - window_bp, panel_pos[widx].max() + window_bp
         win = np.where((panel_pos >= lo) & (panel_pos <= hi))[0]

@@ -1,8 +1,17 @@
 # Changelog
 
+> **Current qualification (9 November 2026):** the historical v0.3.0 claims below must be read with [the final review clarifications](docs/SUBMISSION_REVIEW.md). In particular, reused pilot SEs prevent treating the estimated-parameter rates as exact conditional calibration; the panel-SD fallback has no general conditional-validity result.
+
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
+
+## [Unreleased: 0.3.1.dev0]
+- Correct retained polymorphic weight coverage and EAF metadata on allele reversal.
+- Reject nonfinite denominators and invalid one-block/noninteger SE requests; warn in the direct panel-SD interface.
+- Include core.py in the main null resume hash and correct paper build source names.
+- Qualify approximate tail calculations, omitted covariance, real-genotype truth uncertainty and assistance roles.
+- Preserve all v0.3.0 numerical results and its DOI archive.
 
 ## [0.3.0] - 2026-11-08
 Second corrective release, responding to the author's re-audit of v0.2.1. All results were regenerated from scratch in a fresh working directory, with a provenance record for every step (some steps ran on an uncommitted working tree; the recorded source hashes identify the code).

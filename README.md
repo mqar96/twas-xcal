@@ -11,6 +11,8 @@ Developed and maintained by **[MUHAMMAD QUDDUSE AHMAD RAO](docs/AUTHOR.md)** · 
 
 **Ancestry-aware null calibration for transcriptome-wide association studies (TWAS).**
 
+[Research brief: problem, evidence, potential uses and limits](docs/RESEARCH_BRIEF.md)
+
 `twas-xcal` implements **XCAL-t**: a summary-statistic TWAS test whose null variance includes the polygenic background of the *GWAS* ancestry, with an approximate reference distribution incorporating LD-panel noise and diagonal uncertainty terms for the estimated intercept and polygenicity slope. It also ships a benchmark that **counts** false positives against an exactly known simulated null.
 
 > **v0.3.0** responds to the author's re-audit of v0.2.1. Weights are now scaled by GWAS allele-frequency SDs and the jackknife holds them fixed; the standard errors of the estimated intercept and slope are propagated; polygenicity is estimated leave-one-chromosome-out; genomic control is counted exactly; every step records provenance; and the method is applied to Biobank Japan height. All results were regenerated. See [CHANGELOG](CHANGELOG.md) and [docs/AUDIT_RESPONSE.md](docs/AUDIT_RESPONSE.md).

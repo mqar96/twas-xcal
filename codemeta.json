@@ -1,0 +1,59 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "TWAS-XCAL: ancestry-aware calibration for transcriptome-wide association studies",
+  "description": "Research software and benchmarks for ancestry-aware TWAS calibration under polygenic backgrounds. XCAL-t uses ancestry-matched LD, a finite-panel variance estimator and an approximate t reference. Counted simulation errors, model-based genotype-only predictions and a descriptive Biobank Japan application are distinguished. Current source is maintenance development version 0.3.1.dev0; the reported scientific analyses remain archived as v0.3.0, DOI 10.5281/zenodo.24062489.",
+  "version": "0.3.1.dev0",
+  "dateModified": "2026-11-09",
+  "codeRepository": "https://github.com/mqar96/twas-xcal",
+  "url": "https://github.com/mqar96/twas-xcal",
+  "license": "https://spdx.org/licenses/MIT",
+  "author": [
+    {
+      "@type": "Person",
+      "@id": "https://orcid.org/0009-0001-8731-7080",
+      "name": "MUHAMMAD QUDDUSE AHMAD RAO",
+      "givenName": "Muhammad Qudduse Ahmad",
+      "familyName": "Rao",
+      "url": "https://github.com/mqar96"
+    }
+  ],
+  "maintainer": [
+    {
+      "@type": "Person",
+      "@id": "https://orcid.org/0009-0001-8731-7080",
+      "name": "MUHAMMAD QUDDUSE AHMAD RAO",
+      "email": "qudduse1234@gmail.com"
+    }
+  ],
+  "keywords": [
+    "TWAS",
+    "transcriptome-wide association studies",
+    "GWAS",
+    "genome-wide association studies",
+    "statistical genetics",
+    "bioinformatics",
+    "multi-ancestry",
+    "linkage disequilibrium",
+    "polygenicity",
+    "null calibration",
+    "type I error",
+    "XCAL-t",
+    "1000 Genomes",
+    "MESA",
+    "Biobank Japan"
+  ],
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python >=3.10",
+  "applicationCategory": "Bioinformatics; statistical genetics",
+  "developmentStatus": "active; research beta; current development version is untagged",
+  "readme": "https://github.com/mqar96/twas-xcal/blob/main/README.md",
+  "issueTracker": "https://github.com/mqar96/twas-xcal/issues",
+  "contIntegration": "https://github.com/mqar96/twas-xcal/actions/workflows/tests.yml",
+  "citation": "https://doi.org/10.5281/zenodo.24062489",
+  "relatedLink": [
+    "https://zenodo.org/records/24062489",
+    "https://doi.org/10.5281/zenodo.24028643",
+    "https://github.com/mqar96/twas-xcal/blob/main/docs/AUTHOR.md"
+  ]
+}

@@ -1,6 +1,8 @@
 > **Submission review update (9 November 2026).** The reported scientific analyses remain archived as **v0.3.0**, DOI [10.5281/zenodo.24062489](https://doi.org/10.5281/zenodo.24062489). The current development source is **0.3.1.dev0**, with interface/input fixes and clarified reporting; it is not a newly tagged or DOI-archived scientific release. No result tables were regenerated or replaced by this maintenance update. See [review clarifications](docs/SUBMISSION_REVIEW.md).
 
-# twas-xcal
+# TWAS-XCAL: ancestry-aware TWAS calibration
+
+Developed and maintained by **[MUHAMMAD QUDDUSE AHMAD RAO](docs/AUTHOR.md)** · [ORCID 0009-0001-8731-7080](https://orcid.org/0009-0001-8731-7080) · [Archived scientific software and results](https://doi.org/10.5281/zenodo.24062489)
 
 [![tests](https://github.com/mqar96/twas-xcal/actions/workflows/tests.yml/badge.svg)](https://github.com/mqar96/twas-xcal/actions/workflows/tests.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24028643.svg)](https://doi.org/10.5281/zenodo.24028643)
